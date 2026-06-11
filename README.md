@@ -1,26 +1,27 @@
-# 現代軟體工程互動學習地圖
+# 現代軟體工程互動心智圖
 
-這是一個可直接發布到 GitHub Pages 的靜態教材網站，內容聚焦在測試、自動化、效能診斷與生產觀測。
+這個 repository 是可直接發布到 GitHub Pages 的互動式心智圖教材。
 
 ## 檔案
 
-- `index.html`：頁面骨架
-- `styles.css`：視覺與響應式樣式
-- `content.js`：12 個學習單元、名詞解釋、案例、來源
-- `app.js`：篩選、搜尋、互動練習、進度保存
-- `software-engineering-mindmap-v6-factchecked.html`：原始單檔版本，已保留未修改
+- `index.html`：主要頁面，保留原本 Canvas 心智圖、節點拖曳、階段篩選、搜尋、側邊欄詳情、進度標記等互動。
+- `mindmap-enhancements.js`：教材補強腳本。目前加強了 `Newman / Postman` 與 `突變測試` 兩個節點的初學者說明、名詞補充、類比對應、程式碼註解與互動練習。
 
 ## 本機預覽
 
-因為這是純靜態網站，可以直接用瀏覽器開啟 `index.html`。
+可以直接用瀏覽器開啟：
 
-若想用本機 server 預覽，可在此資料夾執行：
+```text
+index.html
+```
+
+或使用本機 server：
 
 ```bash
 python -m http.server 8080
 ```
 
-然後開啟：
+再開啟：
 
 ```text
 http://localhost:8080
@@ -28,24 +29,19 @@ http://localhost:8080
 
 ## 發布到 GitHub Pages
 
-1. 建立一個 GitHub repository。
-2. 將本資料夾內的 `index.html`、`styles.css`、`content.js`、`app.js`、`README.md` 推上 repository。
-3. 到 GitHub repository 的 Settings。
-4. 進入 Pages。
-5. Source 選擇 `Deploy from a branch`。
-6. Branch 選擇 `main`，資料夾選擇 `/root`。
-7. 儲存後等待 GitHub Pages 部署完成。
+1. 到 repository 的 `Settings`
+2. 點左側 `Pages`
+3. `Source` 選 `Deploy from a branch`
+4. `Branch` 選 `main`
+5. 資料夾選 `/root`
+6. 按 `Save`
 
-## 內容校對原則
+部署完成後網址通常會是：
 
-教材中的技術定義以官方文件與常見工程文獻為主。案例是教學化改寫，用來輔助理解，不等同於完整事故報告。
+```text
+https://polarbear0827.github.io/vibe_coding/
+```
 
-如果要繼續擴充，建議優先修改 `content.js`，每個單元都有固定欄位：
+## 修改方向
 
-- `takeaway`：一句話核心觀念
-- `prerequisites`：前置名詞
-- `explanation`：詳細講解
-- `analogy`：生活類比與名詞對應
-- `code`：有註解的程式碼或偽代碼
-- `caseStudy`：實際案例拆解
-- `lab`：互動練習類型
+後續若要繼續加強其他節點，建議先保留原本心智圖結構，再透過 `mindmap-enhancements.js` 逐步覆蓋指定節點內容。這樣可以避免破壞原有互動與視覺風格。

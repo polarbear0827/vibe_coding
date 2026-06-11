@@ -1,60 +1,2407 @@
-<!doctype html>
-<html lang="zh-Hant">
+<!DOCTYPE html>
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>現代軟體工程互動學習地圖</title>
-  <meta name="description" content="用可閱讀、可互動、可校對的方式學習測試、自動化、效能與觀測性核心概念。">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>現代軟體工程 12 大核心維度</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+
+  /* ── 字型縮放系統 ── */
+  :root {
+    --font-scale: 1;
+    /* Base = 13px × scale. All em values derive from this. */
+  }
+  /* sidebar 和 header 繼承 em base，可被 --font-scale 控制 */
+  #sidebar, #app-header, #canvas-controls {
+    font-size: calc(16px * var(--font-scale));
+  }
+  /* CSS class font-sizes → em */
+  .filter-btn   { font-size: 0.875em; }   /* was 11px */
+  .reading-tag  { font-size: 0.75em; }   /* was 10px */
+  .master-btn-default, .master-btn-active { font-size: 0.875em; } /* was 11px */
+  /* 字型大小控制按鈕 */
+  #font-size-ctrl {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(15,23,42,0.5);
+    padding: 4px 8px;
+    border-radius: 8px;
+    border: 1px solid #1e293b;
+    flex-shrink: 0;
+  }
+  #font-size-ctrl button {
+    width: 24px; height: 24px;
+    border: 1px solid #334155;
+    border-radius: 5px;
+    background: #1e293b;
+    color: #94a3b8;
+    cursor: pointer;
+    font-weight: 900;
+    line-height: 1;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  #font-size-ctrl button:hover { background: #334155; color: #f1f5f9; }
+  #font-size-ctrl button:active { transform: scale(0.92); }
+  #font-size-ctrl button.fs-active {
+    background: #0284c7; border-color: #0ea5e9; color: white;
+  }
+  #font-size-ctrl .fs-label {
+    font-size: 0.75em; color: #64748b; letter-spacing: .03em;
+    white-space: nowrap; min-width: 24px; text-align: center;
+  }
+  /* ── 基礎重置 ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #080c14;
+    color: #f1f5f9;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    /* Google Sites iframe 內禁止 select 使得拖曳更流暢 */
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── 自訂捲軸 ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #0f172a; }
+  ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+  /* ── 玻璃態面板 ── */
+  .glass { background: rgba(15,23,42,0.88); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+  /* ── 整體佈局 ── */
+  #app { display: flex; flex-direction: column; width: 100%; height: 100vh; min-height: 0; }
+
+  /* ── Header ── */
+  #app-header {
+    flex-shrink: 0;
+    background: #0f172a;
+    border-bottom: 1px solid #1e293b;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    z-index: 100;
+  }
+
+  /* ── 主工作區 ── */
+  #workspace {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── Canvas 容器 ── */
+  #canvas-wrap {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  #mindmap-canvas {
+    display: block;
+    cursor: grab;
+    width: 100%;
+    height: 100%;
+  }
+  #mindmap-canvas.dragging { cursor: grabbing; }
+
+  /* ── 可拖曳分隔條 ── */
+  #divider {
+    width: 6px;
+    flex-shrink: 0;
+    background: #1e293b;
+    cursor: col-resize;
+    position: relative;
+    z-index: 50;
+    transition: background 0.15s;
+  }
+  #divider:hover, #divider.active { background: #38bdf8; }
+  #divider::after {
+    content: '⋮';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #475569;
+    font-size:1.231em;
+    pointer-events: none;
+  }
+
+  /* ── 側邊欄 ── */
+  #sidebar {
+    width: 420px;
+    min-width: 260px;
+    max-width: 60vw;
+    flex-shrink: 0;
+    background: #0c101b;
+    border-left: 1px solid #1e293b;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+    /* Google Sites 偶爾在小視窗下隱藏側邊 */
+    transition: width 0.2s ease;
+  }
+  #sidebar.collapsed { width: 0; min-width: 0; border-left: none; }
+
+  /* ── 詳情面板 ── */
+  #detail-panel { flex: 1; overflow-y: auto; padding: 16px; }
+
+  /* ── 底部導覽 ── */
+  #nav-bar {
+    flex-shrink: 0;
+    border-top: 1px solid #1e293b;
+    background: #0a0d17;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* ── 控制覆蓋層 ── */
+  #canvas-controls {
+    position: absolute;
+    bottom: 14px; left: 14px;
+    background: rgba(15,23,42,0.96);
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 12px;
+    width: 220px;
+    z-index: 20;
+    font-size:0.846em;
+  }
+
+  /* ── 階段 overlay ── */
+  #stage-overlay {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    display: flex;
+    opacity: 0.18;
+  }
+  .stage-zone {
+    flex: 1;
+    border-right: 1px dashed #334155;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 8px;
+  }
+  .stage-zone:last-child { border-right: none; }
+
+  /* ── 篩選器 ── */
+  .filter-btn {
+    padding: 3px 8px;
+    border-radius: 8px;
+    font-size:0.846em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: #94a3b8;
+    background: transparent;
+    border: none;
+    white-space: nowrap;
+  }
+  .filter-btn.active { background: #0284c7; color: white; }
+  .filter-btn:hover:not(.active) { color: #e2e8f0; }
+
+  /* ── 側邊欄開關按鈕 ── */
+  #sidebar-toggle {
+    position: absolute;
+    top: 50%; right: 0;
+    transform: translateY(-50%);
+    width: 18px; height: 48px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    cursor: pointer;
+    z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+    font-size:0.769em; color: #94a3b8;
+    transition: background 0.15s;
+  }
+  #sidebar-toggle:hover { background: #334155; color: #f1f5f9; }
+
+  /* ── 動畫 ── */
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+  .pulse-anim { animation: pulse-glow 1.6s ease-in-out infinite; }
+
+  /* ── 響應式：窄螢幕折疊側邊欄 ── */
+  @media (max-width: 680px) {
+    #sidebar { width: 100% !important; max-width: 100%; position: absolute; right: 0; top: 0; bottom: 0; transform: translateX(100%); transition: transform 0.25s ease; }
+    #sidebar.mobile-open { transform: translateX(0); }
+    #divider { display: none; }
+    #sidebar-toggle { display: none; }
+    #mobile-sidebar-btn { display: flex !important; }
+    #canvas-controls { width: 170px; }
+    /* 窄螢幕預設縮小一級，節省空間 */
+    :root { --font-scale: 0.9; }
+    /* 字型控制器在窄螢幕稍微縮小 */
+    #font-size-ctrl button { width: 20px; height: 20px; }
+  }
+
+  /* ── Tag 標籤 ── */
+  .reading-tag {
+    background: #0f172a;
+    color: #64748b;
+    font-size:0.769em;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #1e293b;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  /* ── 掌握按鈕 ── */
+  .master-btn-default {
+    font-size:0.846em; font-weight: 700;
+    padding: 5px 10px; border-radius: 8px;
+    border: 1px solid #334155; background: #1e293b; color: #94a3b8;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+  }
+  .master-btn-active {
+    font-size:0.846em; font-weight: 700;
+    padding: 5px 10px; border-radius: 8px;
+    border: 1px solid #d97706; background: rgba(120,53,15,0.3); color: #fcd34d;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 4px;
+  }
+
+  /* ── 互動圖表容器 ── */
+  .diagram-box {
+    background: rgba(15,23,42,0.7);
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 120px;
+    display: flex; align-items: center;
+  }
+
+  /* ── 進度條 ── */
+  #progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0ea5e9, #10b981);
+    transition: width 0.4s ease;
+    border-radius: 9999px;
+  }
+
+  /* ── Google Sites 強制全高修正 ── */
+  /* Sites 嵌入時 body 高度可能未正確繼承 */
+  body { min-height: 100vh; }
+</style>
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="#top" aria-label="回到首頁">
-        <span class="brand-mark"></span>
-        <span>
-          <strong>現代軟體工程互動學習地圖</strong>
-          <small>12 個核心維度，從看得懂到能判斷</small>
-        </span>
-      </a>
-      <nav class="top-actions" aria-label="頁面操作">
-        <button class="icon-button" id="themeToggle" type="button" title="切換亮暗色">◐</button>
-        <a class="secondary-link" href="#sources">校對來源</a>
-      </nav>
-    </header>
+<div id="app">
 
-    <main id="top" class="layout">
-      <aside class="rail" aria-label="學習單元">
-        <div class="rail-tools">
-          <label class="search-box">
-            <span>搜尋</span>
-            <input id="searchInput" type="search" placeholder="例如：突變測試、Newman、P95">
-          </label>
-          <div class="stage-tabs" id="stageTabs" role="tablist" aria-label="階段篩選"></div>
+  <!-- ═══ HEADER ═══ -->
+  <header id="app-header">
+    <!-- 品牌 -->
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <div style="width:8px;height:8px;border-radius:50%;background:#38bdf8;animation:pulse-glow 1.5s infinite"></div>
+      <div>
+        <div style="font-size:1.0em;font-weight:900;letter-spacing:0.05em;background:linear-gradient(90deg,#38bdf8,#818cf8,#34d399);-webkit-background-clip:text;background-clip:text;color:transparent">
+          現代軟體工程專家修煉路徑
         </div>
-        <div class="progress-card">
-          <div>
-            <strong id="progressText">0 / 12</strong>
-            <span>已完成理解檢核</span>
-          </div>
-          <div class="progress-track"><span id="progressBar"></span></div>
-        </div>
-        <ol class="lesson-list" id="lessonList"></ol>
-      </aside>
-
-      <section class="reader" id="reader" aria-live="polite"></section>
-    </main>
-
-    <section id="sources" class="sources-band">
-      <div class="sources-inner">
-        <h2>校對來源與使用方式</h2>
-        <p>本頁的定義以官方文件與常見工程文獻為主，案例是教學化改寫。閱讀時請把互動練習當成「理解模型」，不是完整工具替代品。</p>
-        <div class="source-grid" id="sourceGrid"></div>
+        <div style="font-size:0.6875em;color:#64748b">12 大核心維度 • 互動式學習地圖</div>
       </div>
-    </section>
-  </div>
+    </div>
 
-  <script src="content.js"></script>
-  <script src="app.js"></script>
+    <!-- 階段篩選 -->
+    <div style="display:flex;align-items:center;background:rgba(30,41,59,0.5);padding:3px;border-radius:10px;border:1px solid #1e293b;gap:1px;flex-wrap:wrap">
+      <button class="filter-btn active" id="filter-all" onclick="setStageFilter('all')">全部</button>
+      <button class="filter-btn" id="filter-1" onclick="setStageFilter(1)">I 基礎</button>
+      <button class="filter-btn" id="filter-2" onclick="setStageFilter(2)">II 自動化</button>
+      <button class="filter-btn" id="filter-3" onclick="setStageFilter(3)">III 效能</button>
+      <button class="filter-btn" id="filter-4" onclick="setStageFilter(4)">IV 觀測</button>
+    </div>
+
+    <!-- 右側工具列 -->
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <!-- 搜尋 -->
+      <input id="search-input" type="text" placeholder="搜尋…"
+        style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:4px 10px;font-size:0.875em;color:#f1f5f9;width:120px;outline:none;transition:border-color 0.15s"
+        onfocus="this.style.borderColor='#38bdf8'" onblur="this.style.borderColor='#1e293b'"
+        oninput="searchQuery=this.value.trim().toLowerCase()">
+      <!-- 進度 -->
+      <div style="display:flex;align-items:center;gap:6px;background:rgba(15,23,42,0.5);padding:5px 10px;border-radius:8px;border:1px solid #1e293b">
+        <span style="font-size:0.75em;color:#64748b">進度</span>
+        <div style="width:60px;background:#1e293b;border-radius:9999px;height:6px;overflow:hidden">
+          <div id="progress-fill" style="width:0%"></div>
+        </div>
+        <span id="progress-text" style="font-size:0.875em;font-weight:900;color:#38bdf8">0%</span>
+      </div>
+      <!-- 字型大小控制 -->
+      <div id="font-size-ctrl">
+        <button id="fs-btn-sm" onclick="setFontSize('sm')" title="小字">A</button>
+        <button id="fs-btn-md" onclick="setFontSize('md')" class="fs-active" title="中字" style="font-size:14px">A</button>
+        <button id="fs-btn-lg" onclick="setFontSize('lg')" title="大字" style="font-size:20px">A</button>
+        <button id="fs-btn-xl" onclick="setFontSize('xl')" title="超大字" style="font-size:20px">A</button>
+      </div>
+      <!-- 行動版側邊欄按鈕（預設隱藏） -->
+      <button id="mobile-sidebar-btn" onclick="toggleMobileSidebar()"
+        style="display:none;padding:4px 8px;background:#0284c7;color:white;border-radius:6px;font-size:0.875em;font-weight:700;border:none;cursor:pointer">
+        詳情
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ 主工作區 ═══ -->
+  <div id="workspace">
+
+    <!-- Canvas 區 -->
+    <div id="canvas-wrap">
+      <canvas id="mindmap-canvas"></canvas>
+
+      <!-- 階段分區標示 -->
+      <div id="stage-overlay">
+        <div class="stage-zone">
+          <span style="font-size:0.6875em;font-weight:800;color:#38bdf8;letter-spacing:.05em">STAGE I<br>基礎防衛</span>
+          <span style="font-size:0.625em;color:#64748b">Code-Level</span>
+        </div>
+        <div class="stage-zone">
+          <span style="font-size:0.6875em;font-weight:800;color:#818cf8;letter-spacing:.05em">STAGE II<br>自動化防線</span>
+          <span style="font-size:0.625em;color:#64748b">Automation</span>
+        </div>
+        <div class="stage-zone">
+          <span style="font-size:0.6875em;font-weight:800;color:#34d399;letter-spacing:.05em">STAGE III<br>效能診斷</span>
+          <span style="font-size:0.625em;color:#64748b">Diagnostics</span>
+        </div>
+        <div class="stage-zone">
+          <span style="font-size:0.6875em;font-weight:800;color:#fbbf24;letter-spacing:.05em">STAGE IV<br>生產觀測</span>
+          <span style="font-size:0.625em;color:#64748b">Observability</span>
+        </div>
+      </div>
+
+      <!-- 控制板 -->
+      <div id="canvas-controls">
+        <div style="font-size:0.6875em;font-weight:700;color:#64748b;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid #1e293b;padding-bottom:6px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <span>控制中心</span>
+          <button onclick="resetLayout()" style="font-size:0.6875em;font-weight:800;color:#38bdf8;background:rgba(14,165,233,0.1);border:1px solid rgba(14,165,233,0.3);padding:2px 6px;border-radius:4px;cursor:pointer">重置</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="color:#94a3b8">物理引力：</span>
+          <button id="physics-btn" onclick="togglePhysics()"
+            style="font-size:0.6875em;font-weight:700;background:#059669;color:white;border:none;padding:2px 8px;border-radius:4px;cursor:pointer">開啟</button>
+        </div>
+        <!-- 圖例 -->
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <div style="display:flex;align-items:center;gap:5px;font-size:0.75em;color:#94a3b8"><span style="width:8px;height:8px;border-radius:50%;background:#38bdf8;display:inline-block"></span>I 基礎防衛</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:0.75em;color:#94a3b8"><span style="width:8px;height:8px;border-radius:50%;background:#818cf8;display:inline-block"></span>II 自動化防線</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:0.75em;color:#94a3b8"><span style="width:8px;height:8px;border-radius:50%;background:#34d399;display:inline-block"></span>III 效能診斷</div>
+          <div style="display:flex;align-items:center;gap:5px;font-size:0.75em;color:#94a3b8"><span style="width:8px;height:8px;border-radius:50%;background:#fbbf24;display:inline-block"></span>IV 生產觀測</div>
+        </div>
+      </div>
+
+      <!-- 側邊欄收合按鈕 -->
+      <div id="sidebar-toggle" onclick="toggleSidebar()">❯</div>
+    </div>
+
+    <!-- 可拖曳分隔條 -->
+    <div id="divider"></div>
+
+    <!-- 側邊欄 -->
+    <aside id="sidebar">
+      <div id="detail-panel">
+        <!-- 預設佔位 -->
+        <div id="placeholder-content" style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:32px 16px">
+          <div style="font-size:2.25em;animation:pulse-glow 2s infinite">🗺️</div>
+          <div>
+            <h3 style="color:#e2e8f0;font-weight:700;font-size:1.0em">開啟學習導覽</h3>
+            <p style="font-size:0.875em;color:#64748b;margin-top:6px;line-height:1.6">點選左側地圖任意節點，或點擊下方按鈕沿著專家學習鏈條循序漸進。</p>
+            <button onclick="startWalkthrough()"
+              style="margin-top:14px;padding:8px 16px;background:#0284c7;color:white;border-radius:8px;font-size:0.875em;font-weight:700;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(2,132,199,0.3)">
+              🚀 從第一步開始
+            </button>
+          </div>
+        </div>
+
+        <!-- 動態內容（初始隱藏） -->
+        <div id="dynamic-content" style="display:none">
+          <!-- 頂部：標籤 + 掌握按鈕 -->
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
+            <span id="node-stage-tag" style="font-size:0.6875em;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:5px;white-space:nowrap">STAGE I</span>
+            <button id="master-btn" class="master-btn-default" onclick="toggleMastered()">
+              <span id="master-icon">⚪</span><span id="master-text">標記已掌握</span>
+            </button>
+          </div>
+          <h2 id="node-title" style="font-size:1.375em;font-weight:900;color:#f8fafc;letter-spacing:-.02em;line-height:1.2"></h2>
+          <p id="node-tagline" style="font-size:0.875em;color:#64748b;font-style:italic;margin-top:4px;margin-bottom:14px"></p>
+
+          <!-- 互動圖表 -->
+          <div class="diagram-box" style="margin-bottom:14px">
+            <div id="diagram-container" style="width:100%"></div>
+          </div>
+
+          <!-- 深入淺出 -->
+          <div style="margin-bottom:14px">
+            <h4 style="font-size:0.6875em;font-weight:800;color:#38bdf8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">💡 深入淺出與學術定義</h4>
+            <div id="node-intro" style="font-size:0.875em;color:#cbd5e1;line-height:1.7"></div>
+          </div>
+
+          <!-- 生產案例 -->
+          <div style="margin-bottom:14px">
+            <h4 style="font-size:0.6875em;font-weight:800;color:#34d399;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">🏭 企業生產案例</h4>
+            <div id="node-case" style="font-size:0.875em;color:#cbd5e1;line-height:1.7;background:rgba(15,23,42,0.6);padding:10px;border-radius:8px;border:1px solid #1e293b"></div>
+          </div>
+
+          <!-- 生活類比輪播 -->
+          <div style="margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <h4 style="font-size:0.6875em;font-weight:800;color:#fbbf24;text-transform:uppercase;letter-spacing:.1em">🍕 直覺生活類比</h4>
+              <div style="display:flex;align-items:center;gap:4px">
+                <span id="analogy-counter" style="font-size:0.625em;color:#64748b">1 / 4</span>
+                <button onclick="prevAnalogy()" id="analogy-prev"
+                  style="width:20px;height:20px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#64748b;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;transition:all .15s"
+                  onmouseover="this.style.background='#334155';this.style.color='#f1f5f9'"
+                  onmouseout="this.style.background='#1e293b';this.style.color='#64748b'">‹</button>
+                <button onclick="nextAnalogy()" id="analogy-next"
+                  style="width:20px;height:20px;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#64748b;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;transition:all .15s"
+                  onmouseover="this.style.background='#334155';this.style.color='#f1f5f9'"
+                  onmouseout="this.style.background='#1e293b';this.style.color='#64748b'">›</button>
+              </div>
+            </div>
+            <!-- 類比點指示器 -->
+            <div id="analogy-dots" style="display:flex;gap:4px;margin-bottom:8px"></div>
+            <!-- 類比卡片 -->
+            <div id="analogy-card" style="background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:10px;transition:opacity .2s ease">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                <span id="analogy-icon" style="font-size:1.0em"></span>
+                <span id="analogy-title" style="font-size:0.75em;font-weight:800;color:#fbbf24"></span>
+              </div>
+              <p id="analogy-body" style="font-size:0.875em;color:#cbd5e1;line-height:1.7"></p>
+            </div>
+          </div>
+
+          <!-- 解決方案 -->
+          <div style="margin-bottom:14px">
+            <h4 style="font-size:0.6875em;font-weight:800;color:#f87171;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">🛠️ 工業落地解決方案</h4>
+            <div id="node-solution" style="font-size:0.875em;color:#cbd5e1;line-height:1.7;background:rgba(127,29,29,0.08);padding:10px;border-radius:8px;border:1px solid rgba(239,68,68,0.15)"></div>
+          </div>
+
+          <!-- 延伸閱讀 -->
+          <div>
+            <h4 style="font-size:0.6875em;font-weight:800;color:#818cf8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">📚 延伸閱讀關鍵字</h4>
+            <div id="node-reading" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部導覽 -->
+      <div id="nav-bar">
+        <button onclick="navigateStep(-1)"
+          style="padding:6px 12px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:0.875em;font-weight:700;color:#94a3b8;cursor:pointer;transition:background 0.15s"
+          onmouseover="this.style.background='#334155'" onmouseout="this.style.background='#1e293b'">⬅ 上一步</button>
+        <span id="step-indicator" style="font-size:0.875em;color:#64748b">無選取節點</span>
+        <button onclick="navigateStep(1)"
+          style="padding:6px 12px;background:#0284c7;border:1px solid #0ea5e9;border-radius:8px;font-size:0.875em;font-weight:700;color:white;cursor:pointer;transition:background 0.15s"
+          onmouseover="this.style.background='#0369a1'" onmouseout="this.style.background='#0284c7'">下一步 ➡</button>
+      </div>
+    </aside>
+  </div><!-- /#workspace -->
+</div><!-- /#app -->
+
+<script>
+/* ============================================================
+   GOOGLE SITES 相容性強化
+   1. ResizeObserver + MutationObserver 監聽 iframe 尺寸
+   2. Passive touch events 消除 console warning
+   3. 防止 clientWidth=0 的降級處理
+   4. 可拖曳分隔條 (resizable panel)
+   ============================================================ */
+
+const canvas  = document.getElementById('mindmap-canvas');
+const ctx     = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvas-wrap');
+const sidebar = document.getElementById('sidebar');
+const divider = document.getElementById('divider');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+
+/* ── Canvas 高 DPR 尺寸設定 ── */
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  // Google Sites iframe 內, clientWidth 可能在第一幀為 0
+  const w = canvasWrap.clientWidth  || canvasWrap.offsetWidth  || window.innerWidth  || 600;
+  const h = canvasWrap.clientHeight || canvasWrap.offsetHeight || window.innerHeight || 400;
+  if (w < 10 || h < 10) return; // 防止 iframe 未就緒時清除已有繪製
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// ResizeObserver 監聽 canvas 容器（在 iframe 中比 window.resize 更可靠）
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(() => { resizeCanvas(); }).observe(canvasWrap);
+}
+window.addEventListener('resize', resizeCanvas);
+// 延遲執行，確保 Google Sites iframe 尺寸已計算完畢
+setTimeout(resizeCanvas, 100);
+setTimeout(resizeCanvas, 500);
+resizeCanvas();
+
+/* ── 字型縮放控制 ── */
+const FONT_SCALES = {
+  sm: 0.75,   // 12px base（精簡）
+  md: 1.0,    // 16px base（預設）
+  lg: 1.25,   // 20px base（舒適）
+  xl: 1.5,    // 24px base（大字）
+};
+let currentFontSize = 'md';
+
+function setFontSize(size) {
+  if (!FONT_SCALES[size]) return;
+  currentFontSize = size;
+  const scale = FONT_SCALES[size];
+  document.documentElement.style.setProperty('--font-scale', scale);
+  // Update button active states
+  ['sm','md','lg','xl'].forEach(s => {
+    const btn = document.getElementById('fs-btn-' + s);
+    if (btn) {
+      btn.classList.toggle('fs-active', s === size);
+    }
+  });
+  // Persist to localStorage (survives page refresh)
+  try { localStorage.setItem('mindmap-font-size', size); } catch(e) {}
+}
+
+// Restore saved preference on load
+(function restoreFontSize() {
+  try {
+    const saved = localStorage.getItem('mindmap-font-size');
+    if (saved && FONT_SCALES[saved]) {
+      // Defer slightly so DOM is ready
+      setTimeout(() => setFontSize(saved), 50);
+    }
+  } catch(e) {}
+})();
+
+/* ── 可拖曳分隔條 (Resizable Panel) ── */
+let isResizing = false;
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+function startResize(e) {
+  isResizing = true;
+  resizeStartX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+  resizeStartWidth = sidebar.getBoundingClientRect().width;
+  divider.classList.add('active');
+  document.body.style.cursor = 'col-resize';
+  e.preventDefault();
+}
+
+function doResize(e) {
+  if (!isResizing) return;
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+  const delta = resizeStartX - clientX;
+  const newWidth = Math.min(Math.max(resizeStartWidth + delta, 260), window.innerWidth * 0.65);
+  sidebar.style.width = newWidth + 'px';
+}
+
+function stopResize() {
+  if (!isResizing) return;
+  isResizing = false;
+  divider.classList.remove('active');
+  document.body.style.cursor = '';
+  resizeCanvas();
+}
+
+divider.addEventListener('mousedown', startResize);
+document.addEventListener('mousemove', doResize);
+document.addEventListener('mouseup', stopResize);
+// 觸控版
+divider.addEventListener('touchstart', startResize, { passive: false });
+document.addEventListener('touchmove', doResize, { passive: true });
+document.addEventListener('touchend', stopResize);
+
+/* ── 側邊欄收合 ── */
+let sidebarCollapsed = false;
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  if (sidebarCollapsed) {
+    sidebar.classList.add('collapsed');
+    sidebarToggle.textContent = '❮';
+    divider.style.display = 'none';
+  } else {
+    sidebar.classList.remove('collapsed');
+    sidebarToggle.textContent = '❯';
+    divider.style.display = '';
+  }
+  setTimeout(resizeCanvas, 50);
+}
+
+/* ── 行動版側邊欄 ── */
+function toggleMobileSidebar() {
+  sidebar.classList.toggle('mobile-open');
+}
+
+/* ═══════════════════════════════════════
+   資料庫
+═══════════════════════════════════════ */
+const concepts = [
+  /* ═══════════════════════ STAGE 1 ═══════════════════════ */
+  { id: 1, label: 'Code Smell', stage: 1, mastered: false,
+    tagline: '代碼能運行，但架構已腐爛——Martin Fowler 定義的技術債早期警訊',
+    intro: `<p><b>Code Smell</b> 這個名詞乍聽有點奇怪——「代碼有臭味」是什麼意思？簡單說：<b>代碼功能完全正確，但內部結構糟糕到讓下次修改變得極其痛苦</b>。這就像一個房間看起來乾淨，但衣櫃裡的東西全部亂塞，一打開就雪崩——表面上沒問題，但維護起來就是噩夢。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 最常見的 5 種 Code Smell，用人話解釋：</b><br><br>
+    <b>① Primitive Obsession（用基本型態代表有意義的概念）</b><br>
+    想像一下，你把「電話號碼」存成一個普通的 String。問題是：電話號碼不是普通字串！它有格式規則（台灣手機必須 09 開頭共 10 碼）、有顯示格式（要不要加連字號）、甚至有地區碼的概念。把它當普通 String，你就得在系統裡到處複製貼上「電話格式驗證的正規表達式」——今天台灣手機號碼規則改了，你要找到 20 個地方都改一遍，漏掉一個就出 Bug。<br>
+    <b>解法</b>：建立 <code>TaiwanPhoneNumber</code> 類別，把驗證邏輯封裝在裡面。以後改規則只改一個地方。<br><br>
+
+    <b>② God Object（一個類別管太多事）</b><br>
+    想像一個員工同時身兼：財務長、業務主管、IT 部門、清潔工、司機……任何部門的問題都要找他。短期內他確實能解決所有事，但他一旦請假，整個公司停擺；要調整財務流程，你還得考慮他的司機工作會不會被影響。程式裡的 God Object 就是這樣——一個類別負責計算金額、發送 Email、寫入資料庫、產生 PDF 報表……改任何一個功能都怕牽連其他。<br><br>
+
+    <b>③ Shotgun Surgery（一個改動需要修很多地方）</b><br>
+    你要調整一個促銷折扣的計算邏輯，結果發現它散落在：購物車模組、結帳頁面、訂單歷史、Email 通知、發票系統……你得同時修改 8 個檔案。改漏一個，那個地方的折扣就跟其他地方對不起來，客戶看到的金額前後矛盾。這說明「折扣計算邏輯」這個概念根本沒有被好好封裝在一個地方。<br><br>
+
+    <b>④ Feature Envy（函式一直在用別人的東西）</b><br>
+    函式 A 寫了十幾行，其中有八行都是在讀取 B 類別的欄位來做計算。這說明什麼？這個計算邏輯本來就應該寫在 B 裡面，不是 A。就像你每天都去鄰居家用他的廚房做飯——與其這樣，不如直接在自己家裝一個廚房。<br><br>
+
+    <b>⑤ Long Method（函式超過 50 行）</b><br>
+    一個函式如果要滾很久才能讀完，代表它在做太多件不同的事。一個函式理想上只做一件事，讓人光看函式名稱就知道它做什麼。超過 50 行通常代表至少有 3-5 件可以獨立拆出去的事情被硬塞在一起。
+    </div>
+
+    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);padding:10px 12px;border-radius:8px;margin-top:10px">
+    <b style="color:#f87171">⚠️ 常被誤解的重點：</b><br>
+    Code Smell 不代表代碼<b>現在</b>有問題，而是說它<b>未來</b>會越來越難修改。一個 1000 行的 God Object 可能運作得很好，但三個月後你要加新功能時，才會痛苦地發現它有多難改。<b>技術債就是這樣積累的</b>——現在方便，未來加倍還。
+    </div>`,
+
+    case: `<p><b>案例一：跨境電商稅率系統（浮點數精度災難）</b><br>
+    某電商將購物車與多國關稅計算寫入同一個 <code>OrderProcessor</code>（God Object，2800 行），金額全用 <code>double</code>（Primitive Obsession）。海關修改精密儀器稅率時，工程師被迫同時修改 11 個不相干的類別（Shotgun Surgery）。上線後，<code>2000.0 * 0.05</code> 因 IEEE 754 二進制浮點表示計算出 <code>99.99999999999999</code>，被 <code>Math.floor()</code> 截斷為 99 元，造成大批日貨報關單因 1 元差額遭海關退單，引發數萬美元倉儲與退運罰款。</p>
+    <p><b>案例二：醫療系統病歷模組（Feature Envy + Data Clumps）</b><br>
+    某醫療 SaaS 的 <code>ReportGenerator</code> 類別中，所有函式幾乎都在大量調用 <code>Patient</code> 類別的 getter（典型 Feature Envy），而 <code>bloodPressureSystolic</code>、<code>bloodPressureDiastolic</code>、<code>bloodPressureMeasuredAt</code> 三個變數每個函式呼叫都要一起傳（Data Clumps）。當衛福部規定血壓必須加入「測量體位」欄位時，工程師發現需要修改 43 個函式簽章，誤改 7 個造成患者報告數值顯示錯位，險些導致醫療事故。</p>
+    <p><b>案例三：Google Docs 早期代碼庫（公開 Postmortem 資訊）</b><br>
+    Google 工程師 Jeff Dean 在內部分享中提及，早期 Google 文件協作系統有一個極端的 God Object，負責同時處理：OT 衝突解決算法、文件格式序列化、網路通訊、使用者權限驗證與版本歷史壓縮，導致任何工程師修改其中一個部分都不敢確定對其他部分的影響，最終觸發了一次大規模重構專案。</p>`,
+
+    analogies: [
+    { icon: '🏠', title: '老舊公寓的電路配線', body: '每個房間的電器都能運作（代碼功能正確），但牆壁裡電線橫七豎八。你想新增一台冷氣（新功能），水電師傅說必須把全棟牆壁打掉重配，否則不知道哪條線會短路——這就是 Shotgun Surgery。而總配電箱（God Object）同時管理電燈、熱水器、冷氣、監視攝影機——改任何一個都在玩命。' },
+    { icon: '🍔', title: '什麼都賣的路邊攤', body: '一個攤位同時賣臭豆腐、珍珠奶茶、滷肉飯、壽司和甜甜圈（God Object）。你想換臭豆腐的炸油（修改某功能），老闆說：「不行，炸油的火候會影響珍珠的熟度、滷肉的湯頭也要重調…」各種食材全擠在同一個爐子上，要改任何一道菜都牽一髮動全身。Clean Code 就是讓壽司師傅只做壽司、珍珠只在珍珠桶裡熟。' },
+    { icon: '🎒', title: '沒有分類的行李箱', body: '衣服、充電線、盥洗包、藥物、護照通通塞進同一個行李箱毫無分隔（Primitive Obsession，什麼都用 String 裝）。要拿護照時必須翻遍整箱。Code Smell 的解法就像改用收納格：衣物袋、電子袋、證件夾各司其職，想找什麼直接開對應的收納格。' },
+    { icon: '🏥', title: '全科醫生 vs 專科診所', body: '以前鄉村醫生要看心臟病、骨折、皮膚病、精神科（God Object）。醫術確實能解決眼前的病，但遇到複雜手術就完全不夠用。現代醫院的解法正是 SRP：心臟外科、神經科、皮膚科各自獨立，每個科別只專注自己的領域，互相不干擾。這就是 Extract Class 重構的現實對照。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    核心思想是：<b>讓每個概念有自己的家</b>。改一個地方的邏輯，只需要修改那個概念的「家」，不會影響其他地方。這就是「高內聚、低耦合」的實際意義。</p>
+
+    <p><b>1. Value Object 封裝（解決 Primitive Obsession）</b><br>
+    為什麼不直接繼續用 double？因為 <code>double</code> 可以是溫度、距離、重量、匯率——它沒有任何業務語意。把金額封裝成 <code>Money</code> 物件後，這個物件「知道」自己是錢：知道要用 BigDecimal 避免浮點誤差、知道兩個不同幣別的錢不能直接相加、知道如何格式化顯示。<br>
+    <b>實際效果</b>：原本散落在 15 個地方的「檢查金額是否為正數」邏輯，現在全部在 Money 的建構子裡統一處理，再也不會漏掉。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// ❌ 壞：double 沒有任何業務語意，可以加減乘除任何東西
+void pay(double amount, String currency) {
+    if (amount < 0) throw new Exception(); // 這個檢查在哪裡都要重寫
+}
+
+// ✅ 好：Money 物件封裝了「金錢」這個概念的所有規則
+public record Money(BigDecimal amount, Currency currency) {
+    public Money {  // 緊湊建構子：驗證邏輯只寫一次
+        if (amount.compareTo(BigDecimal.ZERO) < 0)
+            throw new NegativeAmountException();
+        Objects.requireNonNull(currency);
+    }
+    // 加法會自動檢查幣別是否相同，避免把台幣加到美元
+    public Money add(Money other) {
+        if (!this.currency.equals(other.currency))
+            throw new CurrencyMismatchException(this.currency, other.currency);
+        return new Money(this.amount.add(other.amount), this.currency);
+    }
+}</pre>
+
+    <p><b>2. Extract Class 拆解 God Object（搭配策略模式）</b><br>
+    為什麼用策略模式（Strategy Pattern）而不是直接拆成多個類別？因為不同國家的稅率計算邏輯會隨時間變動，策略模式讓你在「不修改現有代碼的情況下新增新的稅率策略」（這就是開放封閉原則）。想新增馬來西亞的稅率？只要新增一個 <code>MalaysiaTaxStrategy</code> 類別，完全不碰現有的日本、美國稅率代碼。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// 策略介面：定義稅率計算的「合約」
+interface TaxStrategy {
+    Money calculate(Money subtotal, Order order);
+}
+// 每個國家各自實作，互不影響
+class JapanTaxStrategy implements TaxStrategy {
+    public Money calculate(Money subtotal, Order order) {
+        return subtotal.multiply(new BigDecimal("0.10")); // 日本消費稅 10%
+    }
+}
+// 使用依賴注入，OrderService 不再需要知道任何稅率細節
+class OrderService {
+    private final TaxStrategy taxStrategy; // 由外部注入
+    public Money calculateTotal(Order order) {
+        return order.subtotal().add(taxStrategy.calculate(order.subtotal(), order));
+    }
+}</pre>
+
+    <p><b>3. SonarQube Quality Gate（讓 Code Smell 無法進入 main 分支）</b><br>
+    為什麼要設自動化閘門而不是靠 Code Review？因為人工審查容易疲勞、容易被時間壓力妥協。自動化工具不會疲勞，每次都用相同標準審查。設定認知複雜度（Cognitive Complexity）上限，強制工程師在合併前就拆解複雜函式，而不是「先合併再說之後重構」（之後永遠不會）。</p>`,
+
+    reading: ['Refactoring: Improving the Design of Existing Code (2nd Ed.) - Fowler', 'Clean Code - Robert C. Martin', 'Working Effectively with Legacy Code - Feathers', 'SonarQube Cognitive Complexity Whitepaper', 'Tell, Don\'t Ask Principle - PragProg']
+  },
+
+  { id: 2, label: '功能正確性', stage: 1, mastered: false,
+    tagline: '驗證系統行為精確對齊業務需求——測試的本質與最後一道防線',
+    intro: `<p><b>功能正確性測試</b>要回答一個問題：<b>「系統做的事情，和業務上要求它做的事情，是同一件事嗎？」</b>聽起來理所當然，但實際開發中，這兩件事的落差遠比想像中大。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 功能正確性的三種輸入路徑，你必須全部測到：</b><br><br>
+
+    <b>① Happy Path（正常路徑）——大家都會測，但不夠</b><br>
+    使用者輸入正確的帳號密碼 → 系統登入成功。這是最基本的測試，每個工程師都會做，但這只覆蓋了一個場景。一個功能完整的系統，Happy Path 通常只佔測試案例的 20%。<br><br>
+
+    <b>② Sad Path（預期的錯誤路徑）——最常被忽略</b><br>
+    使用者輸入錯誤密碼時，系統應該怎麼回應？<b>不是崩潰、不是顯示底層技術錯誤（HTTP 500 + Stack Trace 噴給使用者看）</b>，而是顯示「帳號或密碼錯誤」這個友善的業務訊息。Sad Path 測試就是專門驗證：當事情不如預期時，系統的處理是否「優雅」。測試重點包括：空值輸入、格式錯誤、超過長度限制、已刪除的資源等。<br><br>
+
+    <b>③ Evil Path（惡意與極端輸入）——安全性的底線</b><br>
+    有人在「姓名」欄位輸入 <code>&#96;; DROP TABLE users;&#96;</code>（SQL Injection 嘗試）。有人上傳一個 10GB 的圖片。有人在 1 秒內重複點擊「付款」按鈕 100 次。這些都是真實使用者真實做過的事。Evil Path 測試確保系統在這些極端狀況下不會崩潰、不會洩漏數據、不會讓惡意操作成功。<br><br>
+
+    <b>④ 狀態斷言矩陣（State Assertion Matrix）——超越「API 回 200」</b><br>
+    這是很多工程師容易漏掉的一層。測試不只要看 API 回傳「成功」，更要驗證：<br>
+    • 資料庫裡的記錄確實被建立了（而不只是 API 說它建立了）<br>
+    • Redis 快取確實被清除了（避免舊資料被繼續使用）<br>
+    • 外部的 Email/SMS 服務確實被呼叫了（或在測試中確實被 Mock 攔截了）<br>
+    • 帳戶餘額確實減少了正確的金額（而不只是顯示「付款成功」）<br>
+    就像驗收一個裝潢工程，不只是看外觀漂亮，還要打開牆壁確認水管有沒有接好、電線有沒有接地。
+    </div>
+
+    <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.2);padding:10px 12px;border-radius:8px;margin-top:10px">
+    <b style="color:#f87171">⚠️ Idempotency（冪等性）是金融系統的生死線：</b><br>
+    「冪等」的意思是：不管你執行同一個操作幾次，結果都和執行一次完全一樣。HTTP GET 天生冪等（讀取資料不會改變狀態）。但 HTTP POST（建立資料）預設不冪等——在網路不穩定的情況下，客戶端以為請求失敗，重試了一次，結果伺服器收到了兩次，扣了你兩筆錢。<b>測試冪等性，是支付系統功能正確性測試中最重要、也最容易被遺漏的一環。</b>
+    </div>`,
+
+    case: `<p><b>案例一：支付撥款系統冪等性失敗（並發資損）</b><br>
+    某金融平台批次撥款 API，JUnit 測試僅驗證 API 回傳 <code>{"status":"SUCCESS"}</code>（沒有狀態斷言矩陣）。商家因網路超時重試，在 3 毫秒間距內發送了兩次完全相同的撥款請求。由於沒有在 Redis 中實作冪等鍵（Idempotency Key），資料庫在 READ COMMITTED 隔離級別下兩次查詢「該筆轉帳是否已存在」時，都在對方 commit 前讀取，導致雙重扣款，造成數十萬台幣資損。</p>
+    <p><b>案例二：電信系統狀態機測試缺失（非法狀態轉換）</b><br>
+    某電信公司 SIM 卡管理系統的狀態機有 6 個狀態：未啟用 → 正常 → 暫停 → 停用 → 銷號 → 已回收。測試僅覆蓋了 Happy Path。上線後，用戶調用「重新啟用」API 時傳入一張已銷號的卡，系統因沒有驗證非法狀態轉換，直接將「已銷號」狀態改為「正常」，重新啟用了一張已被回收並分配給另一個用戶的號碼，造成兩個用戶共用同一個電話號碼的資安事故。</p>
+    <p><b>案例三：Stripe 的冪等性設計（正面工業案例）</b><br>
+    Stripe API 要求客戶端在 POST 請求中帶上 <code>Idempotency-Key</code> Header，其值為客戶端自己生成的 UUID。Stripe 後端以此 Key 為鍵，在 Redis 中緩存操作結果 24 小時。若同一個 Key 重複請求，直接返回緩存結果而不重新執行操作。這是支付業界教科書級別的冪等性實作，徹底解決網路超時重試的雙重扣款問題。</p>`,
+
+    analogies: [
+    { icon: '✈️', title: '飛機飛行控制系統驗收', body: 'Happy Path = 晴天起飛巡航降落。Sad Path = 起落架感測器故障時，儀表板能否正確警告而非沉默失效？Evil Path = GPS 欺騙攻擊下導航能否切換備援？Boeing 737 MAX 的 MCAS 悲劇，正是 Sad Path 測試不足——單個感測器失效時，系統不驗證數據合理性就直接執行俯衝指令。' },
+    { icon: '🏧', title: 'ATM 提款機的七道防線', body: 'Happy Path = 插卡、輸密碼、選金額、取鈔。Sad Path = 餘額不足時必須顯示錯誤而非把帳戶扣成負數。Evil Path = 連續輸錯三次密碼必須鎖卡。State Assertion Matrix = 不只看螢幕顯示「成功」，還要同時驗證：帳戶餘額確實減少了正確金額、交易日誌已寫入、吐鈔機的現鈔數量減少了正確張數。' },
+    { icon: '🎰', title: '拉霸機的冪等性設計', body: '你按下「確認下注」，網路斷線，再按一次。沒有冪等性 = 賭場扣了你兩次籌碼。有冪等性 = 第二次點擊直接回傳「這筆注單已存在，結果是 XXX」而不重新執行一次押注。這就是為什麼 Stripe、支付寶每筆交易都有唯一的 Idempotency Key——防止網路重試造成的雙重扣款。' },
+    { icon: '🚦', title: '交通號誌控制器的狀態機', body: '紅燈→綠燈→黃燈→紅燈是合法轉換路徑。功能正確性測試不只測「綠燈時車子能走嗎」（Happy Path），更要測「紅燈直接跳到黃燈是否被阻止」（非法狀態轉換）。某市號誌系統沒有驗證非法轉換，維修人員誤操作讓路口兩個方向同時亮綠燈，造成連環追撞事故。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    功能正確性的問題根源往往是：<b>測試案例只描述了「什麼」被執行，而沒有描述「什麼結果是正確的」</b>。解法的核心是讓「期望的結果」變得具體、可量測、無法被糊弄。</p>
+
+    <p><b>1. BDD（行為驅動開發）——用業務語言寫測試</b><br>
+    為什麼要用 Gherkin 這種「Given/When/Then」的格式寫測試？因為<b>業務人員能看懂它</b>。當業務主管看到測試案例寫的是「Given 帳戶餘額為 100 元 / When 轉帳 150 元 / Then 系統應拒絕並顯示『餘額不足』」，他可以直接確認這個場景是不是符合業務邏輯。這消除了「工程師以為自己理解了需求，但其實沒有」的問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">Feature: 銀行轉帳功能
+  Scenario: 餘額不足時拒絕轉帳（Sad Path）
+    Given 帳戶 A 的餘額為 100 元
+    And 帳戶 B 的餘額為 0 元
+    When 使用者嘗試從帳戶 A 轉帳 150 元到帳戶 B
+    Then 系統應回傳錯誤代碼 INSUFFICIENT_BALANCE
+    And 帳戶 A 的餘額應仍為 100 元  ← 這就是「狀態斷言」
+    And 帳戶 B 的餘額應仍為 0 元    ← 確認資料庫狀態沒被污染</pre>
+
+    <p><b>2. 冪等性鍵（Idempotency Key）——讓重試變安全</b><br>
+    為什麼要用 Redis 而不是資料庫來存冪等鍵？因為<b>速度</b>。每筆支付請求都要先查冪等鍵，這個操作在高流量下可能每秒發生萬次。Redis 的記憶體操作在微秒級完成，資料庫需要毫秒級，差了 1000 倍。設 24 小時過期是因為超過 24 小時的重試通常是系統 Bug 而非正常的網路重試，讓它正常執行，並通知客服處理。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// 為什麼這個模式能保證安全？
+// SETNX = SET if Not eXists，在 Redis 層面保證原子性
+// 即使兩個請求同時到達，只有一個能成功設定這個 Key
+func (s *PaymentService) Transfer(ctx context.Context, req TransferRequest) error {
+    key := "idem:" + req.IdempotencyKey
+    // 原子操作：若 key 不存在則設定（並設 24h 過期），回傳 true
+    // 若 key 已存在，回傳 false（說明這是重複請求）
+    isNew, _ := s.redis.SetNX(ctx, key, "processing", 24*time.Hour).Result()
+    if !isNew {
+        return ErrDuplicateRequest  // 直接告訴呼叫方：這個請求已經處理過了
+    }
+    err := s.db.ExecuteTransfer(ctx, req)
+    if err != nil {
+        s.redis.Del(ctx, key)  // 失敗了就刪除 key，讓客戶端可以用同一個 key 重試
+    }
+    return err
+}</pre>
+
+    <p><b>3. 併發 Race Condition 測試——壓測不等於功能測試</b><br>
+    為什麼要專門寫併發測試？因為<b>Race Condition 只在特定的時序下才會出現</b>，正常的單執行緒測試永遠測不出來，壓力測試也不一定能重現。要確認「同時發出的兩筆扣款請求，資料庫到底處理了幾筆」，需要用 CountDownLatch 這類工具，讓多個執行緒精確地在同一個瞬間發送請求。</p>`,
+
+    reading: ['Dijkstra - Notes on Structured Programming (1970)', 'The Art of Software Testing - Glenford Myers', 'Specification by Example - Gojko Adzic', 'Stripe Idempotency API Documentation', 'Metamorphic Testing - Chen & Cheung 1998']
+  },
+
+  { id: 3, label: '邊界測試案例', stage: 1, mastered: false,
+    tagline: '程式碼在臨界點最容易出錯——BVA、Off-by-one 與整數溢位的防禦藝術',
+    intro: `<p><b>為什麼程式碼特別容易在邊界出錯？</b>因為工程師在寫條件判斷時，腦袋裡通常想著的是「一般情況」。「用戶年齡必須大於等於 18 歲」——工程師腦中想到的測試是：20 歲（明顯成年）和 10 歲（明顯未成年），而不是 17、18、19 這三個緊挨著邊界的值。偏偏最容易出 Bug 的，就是這三個值。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ BVA 標準三點測試法，用一個例子說清楚：</b><br><br>
+
+    假設條件是：<b>購物金額滿 1000 元（含）以上才免運費</b><br>
+    <code>if (amount >= 1000) { freeShipping = true; }</code><br><br>
+
+    正確的邊界測試三個值：<br>
+    • <b>999 元（Off-point，臨界線外）</b>：應該要收運費。這個值確認「差一塊錢就不符合條件」的邏輯是對的。<br>
+    • <b>1000 元（On-point，剛好踩在線上）</b>：<b>這是最危險的值</b>，最容易因為 <code>&gt;=</code> 寫成 <code>&gt;</code> 而出錯。應該免運費。<br>
+    • <b>1001 元（In-point，線內）</b>：應該免運費。這個值確認正常情況是對的。<br><br>
+
+    一個工程師如果只測 500 元和 2000 元，他永遠測不出「剛好 1000 元」時判斷錯誤的 Bug。<br><br>
+
+    <b>▶ Off-by-one Error（差一錯誤）是最常見也最致命的邊界 Bug：</b><br><br>
+
+    <b>場景一：陣列遍歷</b><br>
+    <code>for (int i = 0; i &lt;= arr.length; i++)</code>  ← 差一：應該是 <code>i &lt; arr.length</code><br>
+    陣列有 5 個元素，索引是 0~4。當 <code>i = 5</code>（arr.length）時，<code>arr[5]</code> 不存在，程式崩潰。<br>
+    為什麼容易犯？因為人類計數習慣從 1 開始，陣列索引從 0 開始，這個認知落差很容易在疲勞時犯錯。<br><br>
+
+    <b>場景二：分頁計算（這個 Bug 在生產環境很常見）</b><br>
+    100 筆資料每頁 10 筆，共幾頁？<code>100 / 10 = 10</code>，答對了。<br>
+    101 筆資料每頁 10 筆，共幾頁？<code>101 / 10 = 10</code>（整數除法截斷），但正確答案是 11 頁！<br>
+    第 11 頁的第 1 筆資料永遠不會被顯示，使用者以為資料遺失了。<br>
+    正確寫法：<code>Math.ceil(101.0 / 10) = 11</code><br><br>
+
+    <b>場景三：整數溢位（Ariane 5 火箭爆炸的根本原因）</b><br>
+    Java 的 <code>int</code> 最大值是 2,147,483,647（約 21 億）。如果你有一個計數器，統計網站的總訪問人次，超過 21 億之後，下一個數字不是 2,147,483,648，而是 <b>-2,147,483,648</b>（負數！）。如果你的程式依賴這個值來判斷「是否達到某個門檻」，邏輯就完全失效了。1996 年，Ariane 5 火箭就是因為水平速度超過了 16-bit 整數的最大值，導致整個導航系統崩潰，火箭自毀，損失 3.7 億美元。
+    </div>`,
+
+    case: `<p><b>案例一：電商促銷系統 Off-by-one（> vs >=）</b><br>
+    某零售平台促銷條件「滿 1000 元（含）贈送禮盒」，工程師寫成 <code>if (totalPrice &gt; 1000)</code>。QA 測試了 900 元（不送）和 1200 元（送），均通過。但邊界值測試精確驗出：1000 元時系統判定不贈禮。Off-by-one 導致數千筆訂單的消費者集體客訴，引發消費者保護組織介入調查。</p>
+    <p><b>案例二：航空訂票系統分頁 Bug（Fencepost Error）</b><br>
+    某訂票系統「我的訂單」頁面，使用 <code>totalCount / pageSize</code> 計算總頁數（整數除法）。當用戶有 21 筆訂單、每頁 10 筆時，<code>21/10=2</code> 頁，但第 21 筆訂單永遠不會出現。用戶在第 2 頁找不到最新訂單，誤以為訂票失敗，大量重複訂票，造成嚴重超訂（Overbooking）。</p>
+    <p><b>案例三：Ariane 5 火箭爆炸（1996 年真實事故）</b><br>
+    1996 年 6 月 4 日，歐洲太空總署（ESA）Ariane 5 火箭首飛，升空 37 秒後解體爆炸。事故調查報告（Inquiry Board Report）明確指出：飛行系統重用了 Ariane 4 的慣性導航代碼，該代碼將一個 64-bit 浮點數（水平速度 BH）轉換為 16-bit 有符號整數時，Ariane 5 因飛行軌跡更陡，速度值超過了 16-bit integer 上限 32767，產生硬體操作元例外（Operand Error）。例外處理器關閉了主備兩台電腦，火箭失去控制後自毀，損失估計達 3.7 至 5 億美元（不同來源數字有出入，但均為歷史性重大損失）。這是軟體史上最著名的邊界值災難。</p>`,
+
+    analogies: [
+    { icon: '🏥', title: 'ICU 呼吸器警報閾值', body: '設定「血氧飽和度低於 90% 觸發警報」：89%（Off-point：應響警報）、90%（On-point：最容易把 &lt; 寫成 &lt;=）、91%（In-point：應靜默）。工程師寫成 if (spo2 &lt; 90) 而非 if (spo2 &lt;= 90)，當病患血氧剛好是 90%，呼吸器不發警報，護士沒被通知，後果不堪設想。這是 Off-by-one 在醫療現場的樣子。' },
+    { icon: '🎢', title: '雲霄飛車身高限制閘口', body: '規定「身高 120cm（含）以上才能搭乘」，邊界測試就是帶三把不同尺寸的玩偶去測閘口：119cm 應被擋住、120cm 應放行、121cm 也應放行。若工程師把感測器校準偏差了 1mm，120cm 的孩子可能被放行進危險區，或 121cm 的孩子被誤擋。精確校準每個臨界點，是邊界測試的核心任務。' },
+    { icon: '🧾', title: '餐廳集點卡的第 10 杯免費', body: '「集滿 10 點換一杯免費咖啡」，邊界測試要驗證：9 點時不能兌換、10 點時能兌換、兌換後點數歸零（不能保留在 10 點讓你無限免費喝）。某連鎖餐廳的 APP 因為 points >= 10 寫成 points > 10，讓恰好集了 10 點的客人永遠無法兌換，引發大量客訴。' },
+    { icon: '🚀', title: 'Ariane 5 火箭爆炸（1996）', body: '軟體史上最昂貴的邊界值錯誤。工程師重用 Ariane 4 的慣性導航代碼，將 64-bit 浮點水平速度值轉換為 16-bit 整數時，Ariane 5 因軌跡更陡、速度超過 16-bit 上限 32,767，產生整數溢位（Integer Overflow）。未處理的硬體例外讓主備電腦同時關機，火箭升空 37 秒後解體自毀，損失估計達 3.7 至 5 億美元。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    邊界測試案例的難點不是「知道要測邊界」，而是<b>「系統性地確保每個邊界都被測到，不靠記憶力」</b>。解法的核心是把邊界值寫成表格，讓工具自動跑，避免人為遺漏。</p>
+
+    <p><b>1. 參數化測試（Parameterized Tests）——把邊界值表格化</b><br>
+    為什麼不直接寫多個測試函式，每個函式測一個值？因為複製貼上多個幾乎相同的測試函式，維護成本很高——改一個條件邏輯，要同時修改 10 個測試函式。參數化測試把「輸入+預期輸出」整理成表格，測試邏輯只寫一次，加新的測試案例只需要在表格裡加一行。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">@ParameterizedTest(name = "金額{0}元，預期免運:{1}，說明:{2}")
+@CsvSource({
+    "999,  false, '臨界點下方，Off-point，應收運費'",
+    "1000, true,  '剛好踩線，On-point，最容易把>=寫成>'",
+    "1001, true,  '線內正常值，In-point，驗證正常情況'",
+    "0,    false, '零元極端值'",
+    "-1,   false, '負數應被拒絕，系統不應崩潰'"
+})
+void testFreeShippingBoundary(int amount, boolean expected, String desc) {
+    assertEquals(expected, shippingService.isFreeShipping(amount),
+        "邊界測試失敗：" + desc);
+    // 關鍵：測試不只驗證回傳值，還要確認沒有拋出例外
+}</pre>
+
+    <p><b>2. 安全的分頁計算與整數中點計算</b><br>
+    為什麼二分搜尋中 <code>(low + high) / 2</code> 有溢位風險？當 low=1,500,000,000、high=1,500,000,000 時，兩者相加 = 3,000,000,000，超過了 int 最大值 2,147,483,647，結果變成負數，再除以 2 得到一個完全錯誤的中點。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// ❌ 溢位風險：兩個大數相加可能超出 int 範圍
+int mid = (low + high) / 2;
+
+// ✅ 安全寫法：先算差值（差值一定 <= int 最大值），再加 low
+int mid = low + (high - low) / 2;
+
+// ✅ 分頁計算：避免整數截斷
+// ❌ 錯誤：101 / 10 = 10（漏掉最後一筆）
+int pages = totalCount / pageSize;
+// ✅ 正確：101 / 10 = 10...1，有餘數就多一頁
+int pages = (totalCount + pageSize - 1) / pageSize;
+// 或更直觀：
+int pages = (int) Math.ceil((double) totalCount / pageSize);</pre>
+
+    <p><b>3. 必測極端值清單（每次設計測資時對照）</b><br>
+    為什麼要有這個清單？因為大多數 Bug 出現在「工程師沒有想到這個輸入也可能發生」的地方。強制對照清單確保每個欄位都考慮到了這些極端情況：</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">整數欄位：0, 1, -1, Integer.MAX_VALUE, Integer.MIN_VALUE
+字串欄位：空字串"", 單字元"a", 超長字串(>資料庫欄位長度), 含空白"  ", null
+          特殊字元：SQL injection "' OR 1=1", HTML "<script>", Emoji "😀"(4-byte UTF-8)
+集合欄位：空集合[], 只有1個元素[x], 超大集合(壓力測試)
+日期欄位：閏年2月29日, 午夜00:00:00, 時區切換點(DST夏令時變更日)</pre>`,
+
+    reading: ['Software Testing Techniques (2nd Ed.) - Boris Beizer', 'Ariane 501 Inquiry Board Report - ESA 1996', 'What Every Computer Scientist Should Know About Floating-Point - Goldberg', 'JUnit 5 Parameterized Tests Documentation', 'The Humble Programmer - Dijkstra 1972']
+  },
+
+  /* ═══════════════════════ STAGE 2 ═══════════════════════ */
+  { id: 4, label: '測試金字塔', stage: 2, mastered: false,
+    tagline: 'Mike Cohn 的測試分層理論——讓 ROI 最大化的自動化測試架構',
+    intro: `<p><b>測試金字塔的核心問題是：同樣一個 Bug，你想在哪一層發現它？</b>在單元測試層發現（毫秒，自動修復提示）？還是在 E2E 測試層發現（幾分鐘，只知道「某個流程壞了」但不知道哪一行）？還是在生產環境讓用戶發現（代價最高）？金字塔告訴你：<b>越早、越底層發現 Bug，代價越低。</b></p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 三層測試的本質差異（不是「測什麼」，而是「怎麼測」）：</b><br><br>
+
+    <b>① 單元測試（Unit Test）——隔離所有依賴，只測一個函式的邏輯</b><br>
+    想像你要測試一個「計算折扣」的函式。單元測試會把這個函式完全隔離出來：不連資料庫、不發 HTTP 請求、不讀設定檔。它就是一個函式，輸入幾個數字，輸出一個數字，你驗證這個數字對不對。這樣做的好處是：<b>極快（毫秒）、極穩定（不受外部環境影響）、失敗時直接知道哪個函式的哪個邏輯出問題了</b>。<br><br>
+
+    <b>② 整合測試（Integration Test）——讓真實組件互動，但不啟動完整系統</b><br>
+    單元測試確認了「計算折扣的函式邏輯正確」，但你還不知道：「這個函式算出來的折扣，真的有被正確存進資料庫嗎？」整合測試就是用來確認這件事的。它會啟動一個真實的資料庫（但是臨時的，測試完就刪掉），跑你的程式，然後直接查資料庫確認資料對不對。<br><b>Testcontainers 的價值</b>：它讓你可以在 CI 伺服器上自動啟動一個真實的 PostgreSQL，測完自動刪掉，不需要維護一個共用的測試資料庫（共用資料庫會讓測試彼此干擾，產生 Flaky Tests）。<br><br>
+
+    <b>③ E2E 測試（端對端測試）——啟動整個系統，模擬真實用戶操作</b><br>
+    用 Playwright 或 Cypress 控制真實的 Chrome 瀏覽器，點擊按鈕、填寫表單、驗證頁面顯示。這是最接近真實使用情境的測試，但也最慢、最貴、最容易因為外部因素（網路延遲、第三方 API 不穩定）而不穩定（Flaky）。應該只用來測試最核心的「用戶旅程」，例如「用戶能否完成一次完整的購買流程」。<br><br>
+
+    <b>▶ Flaky Test 為什麼如此危險：</b><br>
+    一個「有時通過有時失敗」的測試，比「永遠失敗」的測試更危險。因為工程師會開始懷疑：「這次失敗是真的有 Bug，還是又是那個不穩定的測試？」當這種懷疑形成習慣，工程師就開始忽略測試失敗，CI 的防護網就此失效。<b>Flaky Tests 是在慢慢毒害整個團隊對測試的信任</b>。
+    </div>`,
+
+    case: `<p><b>案例一：旅行社平台 Ice Cream Cone 反模式（CI 地獄）</b><br>
+    某旅遊訂票平台 600+ 個 E2E 測試全都打真實第三方航空公司 API 測試環境，CI 流水線跑一次需要 4.5 小時。第三方 API 偶爾回傳 503 導致 15% Flaky Rate。工程師每次 PR 需要重跑 3-4 次，逐漸開始手動繞過 CI 直接 merge，最終一次未測試的上線導致訂單狀態機出現非法轉換，造成系統性超訂事故。</p>
+    <p><b>案例二：Spotify 的測試金字塔遷移（公開技術部落格案例）</b><br>
+    Spotify 工程師在 2022 年技術部落格中分享，他們將後台服務從 60% E2E + 40% 單元調整為 80% 單元 + 15% 整合 + 5% E2E 後，CI 平均時間從 45 分鐘降至 8 分鐘，Flaky Test 比率從 12% 降至 0.3%，每週部署頻率從 2 次提升至 12 次。<br>
+    <i style="font-size:0.6875em">（注：Spotify 確實有公開的 Engineering Culture 部落格，但上述具體數字為代表性說明，非直接引用官方數據）</i></p>
+    <p><b>案例三：Google 的 70/20/10 黃金比例</b><br>
+    Google 在《Software Engineering at Google》（Winters et al., 2020）一書中明確提及，其生產系統遵循大致 70% 單元測試、20% 整合測試、10% E2E 測試的分佈，並強調任何單個測試的執行時間超過 60 秒即被標記為「太慢的測試」需要重構。</p>`,
+
+    analogies: [
+    { icon: '🚗', title: '汽車製造的多層品質驗收', body: '單元測試 = 每顆螺絲、每片金屬在出廠前在專用夾具上做破壞性測試（便宜快速）。整合測試 = 把引擎、變速箱、傳動軸組裝後在台架上通電運轉，測試扭矩傳遞與散熱。E2E 測試 = 讓測試駕駛員把整輛車開上封閉跑道跑一圈（最貴最慢）。只用 E2E = 每個零件壞了都要把整車拆解才知道問題在哪。' },
+    { icon: '🍕', title: '披薩店的三層品管流程', body: '單元測試 = 廚師每天早上測試麵糰發酵是否達標、食材新鮮度（快速、低成本、高度隔離）。整合測試 = 組好披薩放入烤爐前測試麵糰厚度、醬料均勻度、起司覆蓋率（需要多個組件互動）。E2E 測試 = 讓試吃員實際吃一整片打分數（最慢最昂貴）。Ice Cream Cone 反模式 = 廚師不測麵糰、不測食材，每次都要等客人吃完才知道哪裡出問題。' },
+    { icon: '🏗️', title: '建築工程的逐層驗收', body: '單元測試 = 每根鋼筋、每塊預拌混凝土在工廠先做抗壓試驗（100% 覆蓋，毫秒完成）。整合測試 = 柱子與樑接合後測試節點強度（需要真實組件協作）。E2E 測試 = 整棟樓建好後進行整體載重測試（最昂貴，只做一次）。若只做最後一步：整棟樓蓋完才發現某批鋼筋不合格，就必須拆掉整棟重蓋——這就是 CI 流水線裡只有 E2E 測試的代價。' },
+    { icon: '🎮', title: '電玩遊戲的 QA 流程', body: '單元測試 = 程式師每次 commit 後自動驗證物理引擎的碰撞計算（毫秒）。整合測試 = 讓 bot 自動跑完一個關卡，驗證存檔系統、音效觸發、UI 更新是否協調（秒）。E2E 測試 = 人工 QA 玩整個 20 小時遊戲主線（天）。Flaky Tests = bot 的隨機路徑偶爾踩到 NPC 的 Race Condition，測試時而過時而不過，讓開發團隊對 CI 結果完全失去信任。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    大多數團隊的問題不是「不知道要測試」，而是<b>「測試太慢、太不穩定，導致工程師不想等 CI、開始繞過測試」</b>。解法的核心是讓測試變快、變穩定，讓工程師願意等待並信任 CI 結果。</p>
+
+    <p><b>1. Testcontainers——消滅「共用測試資料庫」這個毒瘤</b><br>
+    為什麼共用測試資料庫是壞主意？因為每個工程師的測試都在修改同一個資料庫，Test A 建立的資料可能讓 Test B 的查詢結果變得不可預測。Testcontainers 讓每個測試（或每次 CI 執行）都有自己獨立的資料庫，測試完全隔離，結果 100% 可重現。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">@Testcontainers
+class OrderRepositoryTest {
+    // 這個容器在測試開始前自動啟動，結束後自動刪除
+    // "postgres:15-alpine" 是一個很輕量的 PostgreSQL 映像，啟動只需 2-3 秒
+    @Container
+    static PostgreSQLContainer&lt;?&gt; postgres =
+        new PostgreSQLContainer&lt;&gt;("postgres:15-alpine");
+
+    // 告訴 Spring 使用這個臨時容器的連線資訊，而非 application.properties 的設定
+    @DynamicPropertySource
+    static void configure(DynamicPropertyRegistry reg) {
+        reg.add("spring.datasource.url", postgres::getJdbcUrl);
+    }
+    // 現在每個測試方法都有一個乾淨的資料庫，互不影響
+}</pre>
+
+    <p><b>2. Awaitility——消滅 Thread.sleep（Flaky Test 的主要來源之一）</b><br>
+    為什麼 <code>Thread.sleep(2000)</code> 會造成 Flaky Test？因為 2000ms 在你的電腦夠用，在 CI 伺服器可能因為負載高而不夠用，測試就偶爾失敗。Awaitility 的做法是：持續輪詢，直到條件成立（或超過最大等待時間才算失敗）。這讓測試在快的環境跑得快，在慢的環境也能等到結果。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// ❌ 壞：固定等待 2 秒，在慢機器上可能不夠，在快機器上浪費時間
+Thread.sleep(2000);
+assert orderRepo.findById(orderId).getStatus().equals("SHIPPED");
+
+// ✅ 好：最多等 10 秒，每 200ms 檢查一次，滿足條件就立即通過
+await().atMost(10, SECONDS)
+    .pollInterval(200, MILLISECONDS)
+    .untilAsserted(() ->
+        assertEquals("SHIPPED",
+            orderRepo.findById(orderId).getStatus())
+    );</pre>
+
+    <p><b>3. Flaky Test 隔離策略——不讓壞蘋果壞了整桶</b><br>
+    為什麼要把 Flaky Test 隔離而不是立刻修？因為修一個 Flaky Test 可能需要幾天，而這幾天如果讓它繼續阻擋所有工程師的 PR，生產力損失更大。隔離到夜間排程，讓它繼續跑（收集資料、不讓 Bug 消失在黑暗中），但不阻擋正常開發流程，同時追蹤 Issue 確保被修復，不是永遠放著。</p>`,
+
+    reading: ['Succeeding with Agile - Mike Cohn', 'The Practical Test Pyramid - Martin Fowler (martinfowler.com)', 'Software Engineering at Google - Winters, Manshreck, Wright (O\'Reilly)', 'Testcontainers Official Documentation', 'Awaitility: Asynchronous Test Library']
+  },
+
+  { id: 5, label: 'Newman / Postman', stage: 2, mastered: false,
+    tagline: 'API 合約測試的黃金工具鏈——從 GUI 調試到 CI 無頭式自動化回歸',
+    intro: `<p><b>API 合約測試要解決的問題</b>：在微服務架構中，前端、後端、物流服務、支付服務各自開發。後端工程師「改了一個 API 欄位名稱」，這在他的範圍內是合理的重構，但前端工程師不知道，繼續用舊欄位名稱，結果用戶看到空白頁面。API 合約測試就是這個問題的防火牆——<b>任何破壞既有 API 合約的改動，在合併前就被攔截。</b></p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ Postman 和 Newman 各自扮演什麼角色？</b><br><br>
+
+    <b>Postman（人工調試工具）</b><br>
+    Postman 就是一個讓你能用 GUI 介面發送 HTTP 請求、觀察回應的工具。它比直接用 curl 命令列方便得多，可以管理多個 API 端點、儲存請求歷史、設定不同環境的變數（開發環境用 localhost，Staging 環境用不同的 URL）。Postman 的另一個重要功能是讓你在請求後執行「測試腳本」——用 JavaScript 寫斷言，驗證回應的格式、狀態碼、特定欄位的值。<br><br>
+
+    <b>Newman（無頭式 CLI 執行工具）</b><br>
+    Newman = Postman 的「無頭版本」（沒有 GUI 界面）。你把 Postman 裡設計好的測試集合（Collection）導出成一個 JSON 檔案，Newman 就能在任何環境（包括沒有螢幕的 CI 伺服器）裡自動執行這個 JSON 檔案，跑完所有測試，輸出報告，並且當有測試失敗時以非零的 Exit Code 結束（讓 CI 知道「這次測試失敗了，不要部署」）。<br><br>
+
+    <b>▶ API Contract Testing 兩種策略的差異：</b><br><br>
+
+    <b>Provider-Driven（提供方主導，Postman/Newman 屬於此類）</b><br>
+    後端定義 API 的 Schema（例如用 OpenAPI/Swagger），消費方（前端）用 Newman 驗證後端實際回應是否符合 Schema。優點：容易實作。缺點：定義 Schema 的是後端，前端可能有一些特殊需求沒有被考慮到。<br><br>
+
+    <b>Consumer-Driven（消費方主導，Pact 工具屬於此類）</b><br>
+    前端先寫下「我預期後端給我什麼樣的資料」，生成合約文件（Pact），後端必須通過這些合約才能部署。這是 Netflix、Atlassian 等大型微服務架構公司的選擇，因為它保證了消費方的需求不會被後端忽略。<br><br>
+
+    <b>▶ HMAC-SHA256 簽章——為什麼金融 API 需要這個？</b><br>
+    HTTPS 加密保護了「傳輸過程中資料不被竊聽」，但它無法保護「已認證的客戶端不會發送偽造請求」。HMAC 簽章讓伺服器可以驗證：這個請求確實是由持有「預先共享密鑰」的客戶端發出的，而且請求內容在傳輸過程中沒有被任何中間人竄改。即使攻擊者截獲了一個請求，也無法修改金額後重新發送（因為他沒有密鑰，無法計算出正確的 HMAC）。
+    </div>`,
+
+    case: `<p><b>案例一：微服務欄位重命名引發白屏（Newman 攔截救援）</b><br>
+    某電商後端工程師在重構付款服務時，將 API 回應欄位 <code>transactionId</code> 重命名為 <code>txId</code>（遵循新的命名規範）。PR Review 只看了後端代碼，沒有人注意到前端 React 組件和物流服務都依賴 <code>transactionId</code>。Newman 在 Staging 環境的 CI 流水線中自動觸發合約測試，兩秒內拋出 <code>AssertionError: Expected transactionId to be present</code>，阻擋了 PR 合併，避免了影響數萬用戶的付款白屏事故。</p>
+    <p><b>案例二：金融開放銀行 HMAC 簽章自動化（PCI DSS 合規）</b><br>
+    某銀行的 Open Banking API 符合台灣金管會 Open API 規範，每個請求都需要攜帶 HMAC-SHA256 簽章。測試工程師在 Postman Pre-request Script 中嵌入簽章計算邏輯，Newman 在 CI 中每次執行都會自動計算正確簽章，讓 600+ 個 API 測試案例無需任何人工干預即可在認證環境中全自動回歸，取代了之前需要 3 名工程師手動操作的每週回歸測試週期。</p>
+    <p><b>案例三：Pact Consumer-Driven Contract（Netflix 模式）</b><br>
+    Netflix 工程師在技術部落格中分享，其龐大的微服務架構（500+ 個服務）採用 Pact Contract Testing 作為服務間 API 變更的防護網。消費者服務在本地生成 Pact 文件並提交至 Pact Broker，提供者服務的 CI 必須通過所有消費者的 Pact 合約才能部署，確保每次 API 變更都不會在不知情的情況下破壞其他服務。</p>`,
+
+    analogies: [
+    { icon: '✈️', title: '飛機維修文件合規性驗證', body: 'Postman = 維修工程師手持電子測試設備，對特定線路接頭進行點對點導通測試（手動調試單個 API）。Newman = 把測試程序書輸入自動化測試台，讓機器對裝配線上每架飛機的每個接頭執行相同程序（CI 無頭式自動回歸）。API 合約 = 飛機部件工程圖紙——供應商交付的零件必須完全符合公差，差 0.1mm 就退貨。' },
+    { icon: '🏭', title: '工廠出貨前的標準化檢驗', body: 'Postman = 品管工程師手持電子槍單次檢測（手動發送請求觀察回應）。Newman = 把電子槍固定在自動傳送帶，每件商品通過就自動施加完全相同的物理檢測（CI 自動化回歸）。API 合約 = 商品規格書，只要出廠規格改了但沒更新規格書，自動檢驗就立刻攔截不符規格的出貨。' },
+    { icon: '📋', title: '政府公文的格式審查系統', body: 'Postman = 公務員手動逐欄比對一份公文是否符合格式規定（姓名欄不能空、日期格式必須是 YYYY/MM/DD）。Newman = 將格式審查規則轉化為自動化程式，每份電子公文送出前都自動掃描一遍，不符合就打回來附上具體錯誤說明。API 合約 = 《公文程式條例》——規定了每個欄位的格式與內容要求。' },
+    { icon: '🍽️', title: '連鎖餐廳的中央廚房標準化', body: 'Postman = 主廚親自試吃一道新菜，確認口味、擺盤、份量符合標準（手動測試單一 API）。Newman = 把評分標準轉化成自動化感測器，每道從中央廚房出來的菜都自動量測重量、溫度、色澤（CI 自動回歸）。API 合約 = 標準化食譜——後端偷偷換了食材比例（改了欄位格式），但前端還按舊食譜做，客人就會吃到「對的菜但配料全錯」。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    Postman/Newman 的核心價值在於<b>把「手動測試 API」的過程代碼化、可重複執行</b>。一旦代碼化，就可以納入版本控制，就可以在 CI 自動跑，就可以在 API 改動時立刻發現破壞性變更。</p>
+
+    <p><b>1. Postman 測試腳本——驗證遠超過「HTTP 200」</b><br>
+    為什麼要驗證 JSON Schema 而不只是檢查特定欄位？因為 API 可能新增了欄位（沒問題），也可能刪除了欄位或改了欄位類型（有問題）。Schema 驗證能一次性確認整個回應結構都符合合約，不需要一個個欄位手動寫斷言。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// Postman Test 分頁（在 Tests 標籤頁裡寫）
+// 測試 1：驗證狀態碼
+pm.test("狀態碼應為 200", () => pm.response.to.have.status(200));
+
+// 測試 2：驗證回應時間（效能合約）
+pm.test("回應時間應低於 500ms", () => pm.expect(pm.response.responseTime).to.be.below(500));
+
+// 測試 3：驗證整個 JSON 結構符合合約（最重要）
+const paymentSchema = {
+    type: "object",
+    required: ["transactionId", "amount", "status", "createdAt"],
+    properties: {
+        transactionId: { type: "string", pattern: "^TXN-[A-Z0-9]{10}$" },
+        amount: { type: "number", minimum: 0.01 },
+        status: { type: "string", enum: ["SUCCESS", "PENDING", "FAILED"] },
+        createdAt: { type: "string", format: "date-time" }
+    },
+    additionalProperties: false  // 禁止出現合約外的欄位
+};
+pm.test("回應符合支付合約 Schema", () =>
+    pm.response.to.have.jsonSchema(paymentSchema)
+);</pre>
+
+    <p><b>2. Newman CI 整合——讓 API 合約變成部署防火牆</b><br>
+    為什麼要用 <code>--bail</code> 參數？因為如果第一個 API 測試就失敗了（例如認證 API 回傳 403），後面所有依賴認證的 API 測試都會跟著失敗，讓報告充斥著假的失敗。<code>--bail</code> 讓它在第一個失敗時就停止，讓工程師專注在真正的根本原因。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">- name: API 合約回歸測試
+  run: |
+    newman run payment-api.postman_collection.json \\
+      --environment staging.postman_environment.json \\
+      --reporters cli,junit \\
+      --reporter-junit-export newman-report.xml \\
+      --bail          # 第一個失敗就停止，快速定位根本原因
+  # 若 newman 以非零 Exit Code 結束，GitHub Actions 自動標記 Job 失敗
+  # 後續的 Deploy Job 因此不會執行</pre>`,
+
+    reading: ['Postman Official Documentation - Pre-request Scripts', 'Newman CLI GitHub Repository', 'Pact - Consumer-Driven Contract Testing', 'OpenAPI Specification 3.1 - swagger.io', 'PCI DSS API Security Requirements - PCI Security Standards Council']
+  },
+
+  { id: 6, label: '突變測試', stage: 2, mastered: false,
+    tagline: '測試案例的壓力測試——用 AST 突變注入檢驗測試集的真實抓漏能力',
+    intro: `<p><b>突變測試要解決一個很尷尬的問題：「我們的測試套件，真的有能力抓到 Bug 嗎？」</b>代碼覆蓋率告訴你「這行代碼被執行過了」，但它<b>無法告訴你</b>：這行代碼的邏輯如果寫錯了，你的測試會察覺到嗎？</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 用一個例子說清楚「代碼覆蓋率是假象」：</b><br><br>
+
+    假設你有這段代碼和測試：<br>
+    <code>function isEligible(items) { return items.size >= 5; }  // 5 件以上才送禮</code><br>
+    <code>test("測試送禮邏輯", () => { isEligible(itemsWith10Items); });  // 只確認它能執行</code><br><br>
+
+    這個測試的代碼覆蓋率是 100%（函式被執行了），但它根本沒有寫 <code>expect</code> 斷言！<br>
+    突變測試框架（Stryker/PITest）會自動把 <code>&gt;=</code> 改成 <code>&gt;</code>，再跑你的測試。結果：<b>測試依然通過</b>，因為你根本沒有驗證結果。這個突變體「存活了」，代表你的測試毫無效用。<br><br>
+
+    <b>▶ 突變運算元——突變框架會自動注入哪些邏輯錯誤：</b><br><br>
+
+    <b>比較運算元替換（最常見的真實 Bug 類型）</b><br>
+    <code>if (x &gt;= 0)</code> → <code>if (x &gt; 0)</code>（0 的邊界行為改變）<br>
+    <code>if (a == b)</code> → <code>if (a != b)</code>（邏輯完全顛倒）<br>
+    這類突變模擬的是：工程師在疲勞時或快速 Review 時最容易犯的細微邏輯錯誤。<br><br>
+
+    <b>算術運算元替換</b><br>
+    <code>return total + tax</code> → <code>return total - tax</code><br>
+    如果你的測試對「稅後總金額」只做 assertNotNull，而沒有驗證具體數字，這個突變體就會存活——代表一個「把加法寫成減法」的 Bug 完全逃過你的測試。<br><br>
+
+    <b>語句刪除</b><br>
+    突變框架會嘗試直接刪除某一行代碼（例如 <code>redis.invalidateCache(userId);</code>），看你的測試是否會察覺到快取沒有被清除。如果沒察覺，說明你的測試對快取一致性完全沒有保護。<br><br>
+
+    <b>▶ 突變分數（Mutation Score）怎麼解讀：</b><br>
+    突變分數 = 被擊殺的突變體數量 / 總突變體數量 × 100%<br>
+    • <b>MS &lt; 50%</b>：測試套件幾乎不能抓到 Bug，覆蓋率再高都是虛假的安全感<br>
+    • <b>MS 60-80%</b>：一般水準，有基本保護但存在明顯盲點<br>
+    • <b>MS &gt; 85%</b>：工業級標準，適合金融、醫療等高風險業務<br><br>
+
+    等價突變體（Equivalent Mutant）：有些突變雖然改了代碼，但不改變程式的語意行為，所以任何測試都無法擊殺它。這是正常現象，計算 MS 時要排除這類突變體。
+    </div>`,
+
+    case: `<p><b>案例一：證券平台融資平倉 MS=65%（資損危機）</b><br>
+    某上市證券公司融資平倉計算模組，JaCoCo 覆蓋率達 98%，測試團隊以為品質有保障。引入 PITest 後發現：150 個突變體中有 52 個存活（MS=65.3%）。分析存活的突變體，其中包括：把保證金計算公式 <code>equity * 0.3</code> 突變為 <code>equity * 0.4</code>，測試案例竟然通過，因為斷言只寫了 <code>assertNotNull(result)</code>。若此 Bug 進入生產環境，在市場急劇波動時，平倉保證金計算錯誤可能導致系統應平倉卻不平，造成數億元的系統性風險暴露。</p>
+    <p><b>案例二：Facebook 的 SapFix 自動修復（AI × 突變測試）</b><br>
+    Facebook（Meta）在 2018 年 ICSE 發表論文，描述其 Sapienz + SapFix 系統：自動化測試工具 Sapienz 使用突變測試識別待修復的 Bug 位置，SapFix 自動生成代碼修復方案，並用突變測試驗證修復是否真的消滅了所有相關突變體。這是業界首個將突變測試用於 AI 驅動自動化修復的生產系統。</p>
+    <p><b>案例三：Stryker 在 TypeScript 前端的應用（React Hook 測試）</b><br>
+    某 FinTech 前端團隊對 React 的資金計算 Custom Hook 使用 Stryker 進行突變測試。Stryker 在 5 分鐘內生成 89 個突變體並執行，發現其中 23 個存活。追查後發現多個 RTL（React Testing Library）測試只驗證了 DOM 是否渲染，完全沒有驗證計算數值，導致利率計算函式的 <code>&gt;</code>/<code>&gt;=</code> 邊界 Bug 完全被遮蔽。</p>`,
+
+    analogies: [
+    { icon: '☢️', title: '核電廠緊急冷卻系統壓力測試', body: '代碼覆蓋率 = 確認每根冷卻管道都通水了（執行過了）。突變測試 = 模擬各種感測器故障模式（突變體），測試緊急冷卻系統在每種故障下是否正確啟動（測試是否 Killed 突變體）。若模擬「溫度感測器偏高 10%」時系統沒觸發冷卻（突變體存活），就意味著真實故障時系統失去反應，後果是核災。' },
+    { icon: '🛡️', title: '防彈衣實彈射擊測試', body: '代碼覆蓋率 100% = 把防彈衣套在假人身上就宣稱安全。突變測試 = 特種狙擊手向每個接縫、盲點（AST 突變點）實彈射擊。子彈被擋下（測試失敗）= 真防彈，突變體被 Killed；子彈穿過去無人發現（測試通過）= 防護無效，突變體 Survived。測試案例再多，如果都只寫 assertNotNull，就像防彈衣上全是裝飾縫線，不能真正擋子彈。' },
+    { icon: '🔬', title: '藥物臨床試驗的對照組設計', body: '「代碼執行過了」（行覆蓋率）就像只確認病患吃了藥。突變測試就像設立對照組：給一組病患吃略微改了成分的假藥（突變體），若這組的康復率和真藥組完全一樣，說明你的「療效評估指標」（斷言）根本沒有真正驗證藥效。軟體測試裡叫 Survived Mutant——測試跑了但沒有真正的驗證效力。' },
+    { icon: '🎯', title: '射擊訓練的打靶紙評分', body: '傳統覆蓋率 = 只統計「你有沒有扣板機（函式有沒有被執行）」。突變測試 = 故意把靶心偏移 10 公分（修改條件邏輯），再讓同一批學員繼續射擊，看得分是否顯著下降。如果偏移了靶心、學員得分完全不變（突變體存活），說明這批學員根本不是在瞄準靶心射擊，而是在胡亂掃射碰運氣——你的測試套件根本沒在驗證對的事情。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    突變測試的目的不是讓你去「消滅所有突變體」，而是<b>讓你找到測試套件裡的「盲點」</b>——那些代碼邏輯即使被偷偷竄改，你的測試也不會有任何反應的地方。找到盲點，補上精確的斷言，讓測試真正有保護效力。</p>
+
+    <p><b>1. PITest 整合到 Maven（Java 生態系）</b><br>
+    為什麼設 <code>mutationThreshold</code> 為 85 而不是 100？因為達到 100% 突變分數在實際專案中幾乎不可能（有等價突變體的存在），追求 100% 會浪費大量時間在無意義的等價突變體上。85% 是工業界普遍接受的「夠安全」門檻，超過這個門檻的投資回報率急劇下降。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">&lt;plugin&gt;
+    &lt;groupId&gt;org.pitest&lt;/groupId&gt;&lt;artifactId&gt;pitest-maven&lt;/artifactId&gt;
+    &lt;configuration&gt;
+        &lt;!-- MS 低於 85% 就讓 Build 失敗，強制工程師補測試 --&gt;
+        &lt;mutationThreshold&gt;85&lt;/mutationThreshold&gt;
+        &lt;!-- 只對業務邏輯核心代碼做突變測試（效能考量）--&gt;
+        &lt;targetClasses&gt;
+            &lt;param&gt;com.company.payment.*&lt;/param&gt;
+            &lt;param&gt;com.company.risk.*&lt;/param&gt;
+        &lt;/targetClasses&gt;
+        &lt;!-- 增量模式：只對本次 commit 修改的代碼做突變，CI 從幾小時降到幾分鐘 --&gt;
+        &lt;withHistory&gt;true&lt;/withHistory&gt;
+    &lt;/configuration&gt;
+&lt;/plugin&gt;</pre>
+
+    <p><b>2. 分析存活的突變體，補上精確斷言</b><br>
+    為什麼突變體存活後要補「精確斷言」而不是「更多測試」？因為問題不是測試案例的數量不夠，而是現有測試案例的<b>斷言不夠精確</b>。10 個只寫 assertNotNull 的測試，不如 1 個精確驗證計算結果的測試。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// PITest 報告說：把 return total + tax 改成 return total - tax 後，測試依然通過
+// 代表你的測試只驗證了「函式會回傳東西」，沒有驗證「回傳的數字對不對」
+
+// ❌ 原本無效的斷言：
+assertNotNull(orderService.calculateTotal(order));  // 永遠通過
+
+// ✅ 補上精確斷言後突變體被擊殺：
+// 已知：商品 100 元，稅率 10%，預期總價 110 元
+Money total = orderService.calculateTotal(orderWith100Items);
+assertEquals(new Money(new BigDecimal("110.00"), TWD), total,
+    "稅後總金額計算錯誤");</pre>`,
+
+    reading: ['Mutation Testing: Theory and Practice - Offutt & Untch (2001)', 'PITest Official Documentation - pitest.org', 'Stryker Mutator Documentation - stryker-mutator.io', 'SapFix: Automated End-to-End Repair at Scale - Facebook ICSE 2018', 'An Empirical Study of Mutation Testing - Andrews, Briand, Labiche (2005)']
+  },
+
+  /* ═══════════════════════ STAGE 3 ═══════════════════════ */
+  { id: 7, label: 'K6 壓力測試', stage: 3, mastered: false,
+    tagline: 'Grafana Labs 維護的 Go 語言高效能壓測引擎——科學地榨乾系統極限',
+    intro: `<p><b>壓力測試要回答的問題：「我的系統最多能同時服務多少人？超過之後會怎樣？」</b>功能測試確認了「1個用戶使用時系統正常」，壓力測試確認「10,000個用戶同時使用時系統還正常嗎？如果不正常，是在哪個點開始崩潰的？」</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 為什麼 K6 比 JMeter 更適合現代開發流程：</b><br><br>
+
+    <b>JMeter 的問題：壓測機先崩潰</b><br>
+    JMeter 用 Java 執行緒（Thread）模擬每個虛擬用戶。每個執行緒需要約 1MB 記憶體。3000 個虛擬用戶 = 3GB 記憶體。8GB 的 CI 伺服器在還沒打到系統之前，JMeter 本身先 OOM 崩潰了。而且 JMeter 的 GUI 難以納入 Git 版本控制，每次改腳本都要手動操作介面。<br><br>
+
+    <b>K6 的核心優勢：Goroutine 輕量併發</b><br>
+    K6 用 Go 語言開發，每個虛擬用戶是一個 Go Goroutine，記憶體佔用僅約 2-4KB（比 Java 執行緒小 250 倍）。10 萬個虛擬用戶，在 K6 裡只需要約 400MB 記憶體。更重要的是：K6 腳本用 JavaScript 寫，是普通的文字檔案，可以 commit 進 Git，可以 Code Review，可以在 CI 自動跑。<br><br>
+
+    <b>▶ 四種壓測場景的適用場景——選錯會讓你測出錯誤的結論：</b><br><br>
+
+    <b>① Ramping VUs（逐步增加虛擬用戶）</b><br>
+    適合：找出系統的容量上限（Capacity Limit）<br>
+    做法：從 100 VUs 開始，每 2 分鐘增加 200 VUs，直到系統回應時間開始急劇上升<br>
+    問題：當系統變慢，VUs 要等更久才完成請求，所以新的 RPS 會自動下降。你不能保持恆定的壓力強度。<br><br>
+
+    <b>② Constant Arrival Rate（恆定到達率）——更科學的 SLA 驗證</b><br>
+    適合：驗證在固定負載下系統是否達到 SLA（如 P95 &lt; 200ms）<br>
+    做法：設定每秒必須發出 500 個請求，K6 會自動調整 VUs 數量來維持這個速率<br>
+    為什麼更科學：系統變慢時，K6 會自動增加 VUs 來補償，確保「每秒 500 個請求」的壓力強度始終恆定，模擬真實流量的行為。<br><br>
+
+    <b>③ Spike Test（瞬間流量突波）</b><br>
+    適合：模擬突發事件（演唱會開搶票、促銷活動開始）<br>
+    關鍵指標：系統能否在 60 秒內自動擴容（Kubernetes HPA）？擴容完成前的 90 秒內，P99 延遲是否超過可接受範圍？<br><br>
+
+    <b>▶ Threshold（閾值）——讓壓測結果自動阻擋部署：</b><br>
+    為什麼要在腳本裡設定 Threshold？讓壓測不只是「產生報告讓人看」，而是直接判斷「是否符合部署條件」。P95 超過 200ms → K6 以非零 Exit Code 結束 → GitHub Actions 判定失敗 → 部署被阻擋，完全自動化，不需要人工解讀報告。
+    </div>`,
+
+    case: `<p><b>案例一：票務平台 JMeter → K6 遷移（機器資源優化 90%）</b><br>
+    某演唱會票務平台每次壓測需要 12 台 m5.2xlarge EC2 主機（每台 8 核 32GB）跑 JMeter，每次壓測成本超過 200 美元。遷移至 K6 後，2 台 m5.xlarge（每台 4 核 16GB）即可驅動相同的 6000 VUs，壓測成本降至 18 美元，同時 K6 腳本納入 Git 與 CI 流水線，實現每次部署前的自動化壓測。</p>
+    <p><b>案例二：Redis 叢集 QPS 飽和點定位（constant-arrival-rate）</b><br>
+    某電商平台使用 K6 的 constant-arrival-rate 場景，每 30 秒將 RPS 從 1000 提升 500，逐步增加至 8000 RPS。在 4200 RPS 時，<code>http_req_duration</code> P95 從穩定的 45ms 突然抬升至 320ms（Knee Point），進一步增加 RPS 後延遲持續線性增長。配合 Prometheus 指標確認，Redis 叢集在 4200 RPS 時 CPU 達到 92%，確定了系統真實容量上限，為容量規劃提供了精確數據。</p>
+    <p><b>案例三：K6 驗證 Kubernetes HPA 自動擴縮容（Spike Test）</b><br>
+    某微服務平台使用 K6 Spike 場景：10 秒內從 100 VUs 跳升至 5000 VUs，模擬突發流量。測試目的是驗證 Kubernetes HPA（Horizontal Pod Autoscaler）能否在 60 秒內自動擴容足夠的 Pod 副本來吸收流量。結果顯示：HPA 在突波後第 45 秒開始擴容，但擴容完成前的 90 秒內，P99 延遲達到了 2.3 秒（超過 SLA），促使團隊預置（Pre-warming）最小 Pod 數量從 2 提升至 10。</p>`,
+
+    analogies: [
+    { icon: '🏎️', title: '賽車引擎上測功機的多種模式', body: 'ramping-vus = 從怠速逐步加大油門，觀察馬力曲線何時下降（找容量上限）。constant-arrival-rate = 鎖定 6000 RPM 持續跑 30 分鐘，驗證恆定負荷下的溫升與穩定性（SLA 驗證）。spike = 瞬間從 2000 RPM 直踩到 7500 RPM，測試渦輪增壓響應（突發流量測試）。JMeter 像招募 500 名市民一起踩油門，每個人出力不一；K6 像電腦精確控制的電子節氣門，每毫秒的油門開度完全一致。' },
+    { icon: '🌊', title: '水利工程的堤防壓力測試', body: 'ramping-vus = 逐漸打開閘門，觀察在哪個水位堤防開始滲漏（找系統飽和點）。constant-arrival-rate = 維持固定水流量 72 小時，驗證長期穩定性。spike = 模擬上游洪峰瞬間到達，測試溢洪道是否能及時開啟分流（突發流量熔斷測試）。JMeter 像工人用水桶手動倒水（執行緒開銷巨大），K6 像精密流量計控制閥門，以科學精度模擬每種水文情境。' },
+    { icon: '🏟️', title: '演唱會場館的容量規劃', body: 'ramping-vus = 從開門入場開始每 10 分鐘增加 1000 名觀眾，觀察哪個時間點安全門開始堵塞（找容量上限）。constant-arrival-rate = 維持每秒 50 人入場速率，測試安檢閘口的持續處理能力。spike = 演唱會結束 5 萬人同時湧出，測試緊急疏散通道是否足夠。Threshold = 設定「通道人流密度不得超過 4 人/m²」，一旦觸發就停止放人入場。' },
+    { icon: '🏗️', title: '大橋的物理承重極限測試', body: 'JMeter = 招募 500 名市民排隊步行過橋（執行緒開銷大，難以同步施壓）。K6 = 調來 100 輛電腦精確控制的重型卡車，以完全一致的間距和時速在同一毫秒列隊全速駛上橋（Go Goroutine 高併發，零額外負擔）。差異在 3000 VUs 以上就會顯現：JMeter 的壓測機自己先 OOM 死掉，真實壓力根本沒有打到被測系統，測出的結果完全失真。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    K6 的最大價值是把壓測從「偶爾跑一次的特殊任務」變成「每次部署前自動執行的品質閘門」。這需要腳本代碼化、Threshold 自動判斷、以及與 CI/CD 流水線的整合。</p>
+
+    <p><b>1. 完整壓測腳本結構（含 SLA 自動閘門）</b><br>
+    為什麼要同時驗證 P95 和 P99？P95 是「大多數用戶的體驗」，P99 是「最慢的那 1% 用戶的體驗」。一個系統可以 P95 很好，但 P99 極差（說明有偶發性的嚴重慢查詢）。只看其中一個都會遺漏問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">import http from 'k6/http';
+import { check } from 'k6';
+
+export const options = {
+  scenarios: {
+    // 使用恆定到達率，保證 500 RPS 的壓力強度始終不變
+    steady_load: {
+      executor: 'constant-arrival-rate',
+      rate: 500,              // 每秒 500 個請求
+      timeUnit: '1s',
+      duration: '5m',
+      preAllocatedVUs: 100,   // 預先準備 100 個 VU
+      maxVUs: 500,            // 系統變慢時，最多擴展到 500 個 VU
+    },
+  },
+  // 這些是部署閘門：任何一項不符合，k6 以非零 Exit Code 退出
+  thresholds: {
+    'http_req_duration': [
+      'p(95)<200',   // 95% 的請求必須在 200ms 內完成
+      'p(99)<500',   // 99% 的請求必須在 500ms 內完成
+    ],
+    'http_req_failed': ['rate<0.01'],  // 錯誤率必須低於 1%
+  },
+};
+
+export default function () {
+  const res = http.post('https://api.example.com/checkout',
+    JSON.stringify({ cartId: 'test-001' }),
+    { headers: { 'Content-Type': 'application/json' } }
+  );
+  // check 不會讓腳本失敗，但會計入 http_req_failed 指標
+  check(res, {
+    '回應狀態為 200': (r) => r.status === 200,
+    '回應包含 orderId': (r) => r.json('orderId') !== undefined,
+  });
+}</pre>
+
+    <p><b>2. K6 × Grafana 即時監控整合</b><br>
+    為什麼要在壓測進行中即時觀察，而不是等跑完再看報告？因為如果 P99 在第 3 分鐘開始急劇上升，你想立刻看到系統哪個部分開始出問題（是 DB 連線池？是 Redis？是 CPU？），而不是等 5 分鐘跑完後再回頭分析。即時監控讓你能在壓測過程中做出決策。</p>`,
+
+    reading: ['k6 Official Documentation - k6.io', 'k6 Source Code - github.com/grafana/k6', 'The Art of Load Testing - Grafana Blog', 'Universal Scalability Law - Neil Gunther', 'Kubernetes HPA Documentation - kubernetes.io']
+  },
+
+  { id: 8, label: '效能退化測試', stage: 3, mastered: false,
+    tagline: '功能測試全綠也可能是噩夢的開始——用統計學自動攔截效能緩慢滑坡',
+    intro: `<p><b>效能退化測試要防範一個「溫水煮青蛙」的問題</b>：每次 PR 讓系統變慢 5ms，看起來完全無害，但 50 個 PR 之後，API 回應時間從 50ms 變成了 300ms，用戶開始流失，但沒有任何一次 PR 觸發了「功能測試失敗」。效能退化測試就是讓系統速度的退步，像功能 Bug 一樣被自動偵測並阻擋。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ 為什麼「平均值」會騙人，只能用 P95/P99：</b><br><br>
+
+    想像有 100 個 API 請求，99 個各花 10ms，1 個花了 1000ms（可能是資料庫 GC 停頓）。<br>
+    • <b>平均值 = 19.9ms</b>——看起來很好，完全沒問題的樣子<br>
+    • <b>P95 = 10ms</b>——還是看起來很好<br>
+    • <b>P99 = 1000ms</b>——每 100 個用戶就有 1 個等了 1 秒！<br><br>
+
+    如果你用平均值作為效能指標，那個隱藏的 1% 超慢請求永遠不會被發現，直到它的比例增加到足夠大。<b>P95/P99 才能揭露「長尾延遲」問題，這是分散式系統中最常見也最難發現的效能問題。</b><br><br>
+
+    <b>▶ 為什麼需要統計檢定（Mann-Whitney U Test），而不是直接比較數字：</b><br><br>
+
+    假設 Baseline P95 是 45ms，今天測到 47ms。這是退化嗎？還是正常的隨機波動？<br>
+    如果用簡單的「超過 15% 就算退化」判斷：47ms &lt; 45ms × 1.15 = 51.75ms，沒有退化。<br>
+    但如果今天測到 52ms 呢？可能是昨天 CI 伺服器 CPU 負載高，不代表代碼有問題。<br><br>
+
+    Mann-Whitney U Test 做的事情：它把 Baseline 的一組延遲數據和今天的一組延遲數據，各自排序，然後用統計方法判斷「這兩組數據的分佈有沒有顯著差異（p-value &lt; 0.05）」。p-value 越低，代表「這不是隨機波動，而是真實的系統性退化」的可能性越高。<b>這讓你避免兩種錯誤：誤報（把正常波動當退化）和漏報（把真實退化當波動）。</b><br><br>
+
+    <b>▶ 效能退化的五大根本原因（按發現難度排序）：</b><br>
+    1. <b>N+1 Query（最常見）</b>：Hibernate/Rails ORM 在迴圈中觸發額外查詢，查一份訂單連帶查了 N 次商品<br>
+    2. <b>缺失 DB Index</b>：遷移腳本新增欄位後忘記建 Index，全表掃描取代索引查詢<br>
+    3. <b>多餘的序列化</b>：新增了一個大欄位到 API 回應（如「完整描述」取代「摘要」），每個請求多了 100KB 序列化開銷<br>
+    4. <b>鎖範圍擴大</b>：重構時把 <code>synchronized</code> 從細粒度鎖移到了方法級別<br>
+    5. <b>連線池耗盡</b>：新功能消耗了更多 DB 連線但沒有相應增加連線池大小
+    </div>`,
+
+    case: `<p><b>案例一：推薦系統 N+1 查詢地雷（P95 從 42ms 退化至 115ms）</b><br>
+    某社群 App 推薦模組在例行 Bug 修復後，效能退化流水線顯示 K6 壓測 P95 從 42ms 劇增至 115ms（+174%）。Mann-Whitney U 檢定確認 p-value &lt; 0.001，統計顯著。深入排查發現：工程師修 Bug 時調用了 <code>userService.getFollowers(userId)</code>，Hibernate 設定 LAZY Loading，在返回 200 個推薦結果的循環中各觸發一次 followers 查詢，共 200 次額外 SQL。加上 <code>@EntityGraph</code> JOIN FETCH 後 P95 降回 38ms。</p>
+    <p><b>案例二：廣告平台 Index 遷移失效（千萬級查詢從 5ms 退化至 2800ms）</b><br>
+    某廣告競價平台發布一個小型遷移，將 <code>campaign_id</code> 欄位由 INT 改為 UUID（VARCHAR(36)）。遷移腳本成功但忘記重建在 <code>campaign_id</code> 上的 Composite Index。上線後，廣告召回查詢從有 Index 的 5ms 退化至全表掃描的 2800ms，在千萬級廣告記錄下。效能退化測試的 P95 閾值警報觸發，CI 自動阻擋上線，工程師在 Staging 環境發現問題，修復後才上線。</p>
+    <p><b>案例三：Amazon 的「100ms 規則」（公開研究）</b><br>
+    Amazon 前 VP Greg Linden 在 2006 年發表部落格（引用 Amazon 內部研究）：每增加 100ms 頁面延遲，Amazon 的銷售額下降 1%。Google 2009 年的研究（Brutlag，於 2008 年 Quality and Productivity Research Conference 發表）發現：搜尋結果每延遲 400ms，搜尋量下降約 0.59%~0.74%（視測試條件而定）。這些數據說明為何頂尖電商公司對效能退化的容忍度接近零。</p>`,
+
+    analogies: [
+    { icon: '🏃', title: '馬拉松選手的每日訓練數據追蹤', body: '功能測試 = 確認選手今天跑完了全程（沒有 DNS）。效能退化測試 = 比對今天完賽時間（3:12）與過去 30 天 Baseline（3:05）。Mann-Whitney U 統計說：「這不是正常波動，是統計顯著的退步（p=0.02）。」教練立刻介入查原因：換了新鞋底（新的序列化代碼）？還是增加了負重訓練造成肌肉疲勞（DB 鎖競爭增加）？' },
+    { icon: '🚗', title: '車廠的油耗週期性驗收測試', body: '每次引擎軟體 OTA 更新後，工廠都會在滾動測功機上跑標準 WLTP 油耗測試，與前版 Baseline 比對。若新版軟體讓油耗增加了 4%（功能完全正常，但多燒了油），自動判定 Performance Regression，阻擋此次 OTA 推送——改了一個燃油噴射邏輯的小 Bug，不知不覺讓 N+1 Query 塞進了控制迴圈。' },
+    { icon: '💊', title: '藥廠的生產批次穩定性檢驗', body: '每批生產的藥錠在出廠前都要測試崩解時間、硬度、溶出率，並與歷史批次的 Baseline 做 Mann-Whitney U 統計比較。若某批次的溶出率雖然仍在合格範圍內，但與過去 20 批的分佈出現統計顯著偏移（p&lt;0.05），就必須暫停出貨調查原因。這和「P95 雖然還在 200ms 以內，但比 Baseline 慢了 30%」的效能退化判斷邏輯完全相同。' },
+    { icon: '🏋️', title: '健身房的力量週期追蹤', body: '你的深蹲 1RM 是 100kg（Baseline）。某週改了訓練計劃（新的代碼重構），深蹲只能蹲 80kg 了——功能上你還是能做深蹲（功能測試通過），但力量退化了 20%（Performance Regression）。教練的自動警報系統說：「這不是正常的疲勞波動，這是訓練計劃系統性問題。」阻止你繼續按新計劃練，回滾到舊計劃（CI 阻擋部署）。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    效能退化測試的核心是<b>建立一個「基準線（Baseline）」，然後每次部署都自動比對</b>。沒有基準線就沒有辦法定義「退化」。解法的每一步都在幫助建立可靠的基準線並做出正確的統計比較。</p>
+
+    <p><b>1. 用 Hibernate Statistics 在 Staging 環境提前偵測 N+1</b><br>
+    為什麼只在 Staging 環境開啟，不在生產環境？因為這個設定會輸出大量 SQL 統計日誌，對效能有輕微影響，也會讓日誌量暴增。在 Staging 環境裡，這個日誌能立刻暴露出「一個 API 請求觸發了 200 次 SQL 查詢」這種問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0"># application-staging.properties
+spring.jpa.properties.hibernate.generate_statistics=true
+logging.level.org.hibernate.stat=DEBUG
+# 日誌裡會出現：
+# HHH90000003: 21 JDBC connections opened, 201 queries executed
+# 200 個商品，201 次查詢 = 1次主查詢 + 200次N+1查詢，嚴重問題！
+# 解法：在查詢加上 JOIN FETCH 或 @BatchSize(size=20) 避免逐條查詢</pre>
+
+    <p><b>2. 自動化統計比較——同時要求「退化幅度大」且「統計顯著」</b><br>
+    為什麼需要兩個條件都成立？只有「退化幅度 &gt; 15%」可能是 CI 伺服器當天負載高的偽陽性。只有「統計顯著」可能是數值上非常小但恰好統計顯著的無意義退化。兩個條件都成立，才是值得阻擋部署的真實效能退化。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">from scipy import stats
+import json, sys
+
+baseline = json.load(open('baseline_latencies.json'))  # 歷史基準線
+current  = json.load(open('current_latencies.json'))   # 本次壓測結果
+
+# Mann-Whitney U Test：不假設資料符合常態分佈（延遲資料通常不是常態分佈）
+stat, p_value = stats.mannwhitneyu(baseline, current, alternative='less')
+
+baseline_p95 = sorted(baseline)[int(len(baseline) * 0.95)]
+current_p95  = sorted(current)[int(len(current)  * 0.95)]
+regression_ratio = current_p95 / baseline_p95
+
+print(f"Baseline P95: {baseline_p95:.1f}ms, Current P95: {current_p95:.1f}ms")
+print(f"退化幅度: {(regression_ratio-1)*100:.1f}%, p-value: {p_value:.4f}")
+
+# 只有同時符合兩個條件才判定為退化
+if regression_ratio > 1.15 and p_value < 0.05:
+    print("❌ 效能退化確認：幅度顯著且統計可信，阻擋部署")
+    sys.exit(1)  # 非零 Exit Code → CI 失敗 → 部署阻擋
+print("✅ 效能正常")</pre>`,
+
+    reading: ['Jeff Dean - Latency Numbers Every Programmer Should Know (2012)', 'The Tail at Scale - Dean & Barroso, Google CACM 2013', 'scipy.stats.mannwhitneyu Documentation', 'Hibernate Performance Tuning and Best Practices', 'Performance Regression Testing in Continuous Delivery - InfoQ']
+  },
+
+  { id: 9, label: 'Profiling 效能剖析', stage: 3, mastered: false,
+    tagline: '用 Flame Graph 和採樣技術定位代碼中的效能黑洞——CPU、記憶體、I/O 三維診斷',
+    intro: `<p><b>Profiling 解決的核心問題：「系統慢，到底是哪行代碼的錯？」</b>沒有 Profiler 之前，工程師只能靠直覺猜測——「可能是資料庫查詢太慢」「可能是這個迴圈跑太多次」。直覺猜測的成功率不到 30%，更糟糕的是：優化了一個不是瓶頸的地方，系統不會變快。Donald Knuth 說的「97% 的過早優化是萬惡之源」，核心意思是：<b>不要在沒有 Profiler 數據的情況下猜測瓶頸。</b></p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ Profiler 怎麼在不停機的情況下「看穿」程式在做什麼：</b><br><br>
+
+    <b>採樣模式（Sampling Profiler）——生產環境唯一選擇</b><br>
+    想像你每隔 10ms 就拍一張「系統當前在執行哪些函式」的照片（Call Stack 快照）。連續拍 3000 張後，統計每個函式在照片中出現的次數，出現越多次 = 它佔用的 CPU 時間越多。這就是採樣模式的原理。<br>
+    關鍵優點：每 10ms 才干擾一次，對系統效能的影響低於 5%，可以在<b>生產環境安全使用</b>。<br><br>
+
+    <b>插樁模式（Instrumentation Profiler）——只能在開發環境用</b><br>
+    在每個函式的「入口」和「出口」各插入一行計時代碼。100% 精確，知道每個函式確切執行了幾毫秒。但問題是：這讓每個函式呼叫都多了 2 次額外操作，整個系統可能慢 20-200 倍，而且 JIT 編譯器的優化決策也會因為代碼被修改而改變。<b>用插樁模式觀察到的效能，不代表系統真實的效能。</b><br><br>
+
+    <b>▶ Flame Graph 火焰圖，讀圖方法（很多人看不懂）：</b><br><br>
+
+    • <b>X 軸（橫向寬度）</b>：代表這個函式在所有採樣中「佔了多少比例的 CPU 時間」。寬度越寬 = CPU 消耗越多。注意：<b>X 軸不是時間軸，不代表哪個函式先執行</b>，只是按字母順序排列。<br>
+    • <b>Y 軸（縱向高度）</b>：代表呼叫棧的深度。最底部是 <code>main()</code> 或 Thread 入口，向上是一層層被呼叫的函式。<br>
+    • <b>找瓶頸的訣竅：「大平頂」</b><br>
+    火焰圖頂部的函式是「沒有繼續呼叫其他函式」的葉節點（Leaf Node），也就是真正在消耗 CPU 的地方。如果你看到頂部有一個很<b>寬</b>的平台（橫向寬度很大），那就是瓶頸所在。它寬的原因是：這個函式被「高頻呼叫」，或「每次執行很慢」，或兩者兼有。<br>
+    • <b>Off-CPU 火焰圖</b>：除了 CPU 使用率，還有一種「Off-CPU 火焰圖」，顯示執行緒在「等待」時阻塞的位置——等待資料庫回應、等待鎖釋放、等待 I/O。如果你的服務 CPU 使用率不高但回應很慢，Off-CPU 火焰圖能幫你找到等待的根源。
+    </div>`,
+
+    case: `<p><b>案例一：Go 服務正則表達式重複編譯（CPU 100% → 8%）</b><br>
+    某影像 CDN 服務在高流量時 CPU 100%，導致大量請求超時。SRE 對生產容器執行 30 秒 <code>go tool pprof</code> 採樣，生成火焰圖發現：頂部出現橫軸寬達 72% 的「大平頂」，函式名稱為 <code>regexp.Compile</code>。追查源碼發現：在每秒被調用 5 萬次的 <code>validateImageURL()</code> 函式內部，每次都調用 <code>regexp.Compile("^https://cdn\\..*\\.(jpg|png|gif)$")</code>。正則表達式的 Compile 操作計算量極大（需要建構 NFA/DFA 狀態機），結果卻沒有被緩存。修復為全域預編譯常數後，CPU 暴降至 8%。</p>
+    <p><b>案例二：Java 服務 GC 頻繁 STW（P99 週期性尖刺）</b><br>
+    某 Java 微服務的 P99 延遲圖呈現規律性的 20 秒間隔尖刺（每次尖刺 200ms），其餘時間 P99 正常在 30ms。這是 GC STW 的典型特徵。使用 Async-Profiler 的 <code>--alloc</code>（記憶體分配模式）採樣，火焰圖顯示主要分配熱點在 <code>JsonMapper.serialize()</code>，每個請求都在 Heap 上分配了數個臨時大型 <code>byte[]</code> 物件。優化方式：引入 <code>ByteBufferPool</code>（物件池），重用緩衝區，Young GC 頻率從每 20 秒降至每 5 分鐘，STW 尖刺消失。</p>
+    <p><b>案例三：Netflix 的 Continuous Profiling（生產環境常態化）</b><br>
+    Netflix 工程師在 2022 年 QCon 分享，其生產環境持續運行基於 eBPF 技術的 Low-overhead Continuous Profiler（<1% CPU 開銷），每 60 秒採集所有生產 JVM 的 CPU + 記憶體 Flame Graph，自動與 7 天前的 Baseline 比對，若某服務的 CPU 熱點發生顯著變化則觸發告警，讓工程師在性能退化造成實際影響前就定位問題。</p>`,
+
+    analogies: [
+    { icon: '🏥', title: '心臟顯影超音波診斷', body: '病人抱怨胸悶（效能不彰），但醫生不能直接剖開胸腔看（源碼盲改）。Profiler = 彩色顯影劑注射後，超音波即時照出哪條冠狀動脈塞住了、血流不順（哪個函式在狂佔 CPU），直接定位精準置入支架（代碼優化）。Flame Graph 就像超音波螢幕上的彩色血流圖——區塊越大，代表那條「血管」消耗了越多系統資源。' },
+    { icon: '🏎️', title: 'F1 賽車的工程師數據牆', body: '賽車手說「車在第 3 彎道感覺很奇怪」（工程師說「CPU 在某個情況下很高」）。F1 工程師不是靠直覺猜，而是把跑道每個點的遙測數據（Telemetry）拉出來——油門開度、煞車壓力、輪胎溫度（等同於 Flame Graph 的 Call Stack 採樣）。定位到：第 3 彎入彎前 200ms 的前輪溫度突然下降（火焰圖頂部的大平頂函式），換一套不同硬度的輪胎（修改代碼）問題消失。' },
+    { icon: '🌡️', title: '廚師的食材溫度探針', body: '判斷 1 公斤牛排是否烤熟有兩種方法：用手指戳肉感受彈性（直覺優化代碼），或直接把溫度探針插進最厚的地方精確讀出 58°C（Profiler 採樣）。Instrumentation Profiler = 在每個肌肉纖維都插探針（極度準確但讓牛排滿是洞，對應插樁模式的巨大效能損耗，生產禁忌）。Sampling Profiler = 每隔 30 秒插一次探針量中心溫度（損耗極小，生產環境適用）。' },
+    { icon: '🔭', title: '天文台望遠鏡的選址測試', body: '天文學家要蓋新望遠鏡，不能靠猜測選址，必須在多個候選地點安裝「大氣監測儀」連續測量一整年的大氣抖動頻率（Sampling，低損耗持續採樣）。Flame Graph = 把一整年氣象數據可視化，哪個月份大氣最穩定一目了然。「第 4 月份的大氣抖動佔全年觀測損失的 72%」就是火焰圖頂部寬達 72% 的大平頂——找到這個點才值得優化，其他 97% 正常的月份碰都別碰。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    Profiling 工具的選擇和用法直接決定了你能在生產環境安全使用嗎、能精確找到根本原因嗎。解法圍繞「最低侵入性、最高精確度、最快從火焰圖到修復」三個原則。</p>
+
+    <p><b>1. Go pprof——預埋在代碼裡的「隨時可用的 X 光機」</b><br>
+    為什麼建議把 pprof 端點一直開著（但限制 VPC 內部訪問）？因為當生產環境出現效能問題時，你需要的是「現在、立刻」就能採樣的能力，而不是「部署一個新版本、等審批、再採樣」。把 pprof 端點限制在內部 VPC，外部無法訪問，安全風險可控。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// main.go：預埋診斷端點（只在 Internal VPC 網段可訪問）
+import _ "net/http/pprof"
+go http.ListenAndServe("127.0.0.1:6060", nil)
+
+// 當生產環境 CPU 飆高時，立刻採樣 30 秒
+// -http=:8888 在本地端口開啟互動式火焰圖瀏覽器
+$ go tool pprof -http=:8888 http://prod-pod:6060/debug/pprof/profile?seconds=30
+
+// 採樣記憶體分配熱點（找記憶體洩漏和 GC 壓力）
+$ go tool pprof -http=:8888 http://prod-pod:6060/debug/pprof/heap</pre>
+
+    <p><b>2. 火焰圖優化三步驟——從看圖到修復的標準流程</b><br>
+    為什麼說「找到大平頂之後要先問『為什麼它這麼熱』，而不是立刻優化」？因為同樣一個熱點，可能有不同的根本原因：是因為「被呼叫次數太多」（需要加快取或減少呼叫頻率），還是因為「每次執行太慢」（需要算法優化），還是因為「在等待某個鎖」（需要減少鎖競爭）。診斷錯了方向，優化也是徒勞。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// 案例：火焰圖顯示 regexp.Compile 佔 72% CPU
+// 診斷：這個函式「被呼叫次數太多」（在 processFrame 迴圈內每次都重新編譯）
+
+// ❌ 每次呼叫都重新編譯正則表達式（每次都要建構 NFA 狀態機，極耗 CPU）
+func validateURL(url string) bool {
+    pattern := regexp.MustCompile(&#96;^https://cdn\\..*\\.(jpg|png)$&#96;)
+    return pattern.MatchString(url)
+}
+// ✅ 預編譯為全域常數，只在程式啟動時建構一次
+var urlPattern = regexp.MustCompile(&#96;^https://cdn\\..*\\.(jpg|png)$&#96;)
+func validateURL(url string) bool {
+    return urlPattern.MatchString(url)
+}
+// 效果：CPU 從 100% 降至 8%</pre>`,
+
+    reading: ['The Flame Graph - Brendan Gregg, ACM Queue 2016', 'brendangregg.com - FlameGraph GitHub Repository', 'Java Async-Profiler GitHub - async-profiler/async-profiler', 'Go pprof Documentation - pkg.go.dev/net/http/pprof', 'Systems Performance (2nd Ed.) - Brendan Gregg (Pearson)']
+  },
+
+  /* ═══════════════════════ STAGE 4 ═══════════════════════ */
+  { id: 10, label: 'Prometheus', stage: 4, mastered: false,
+    tagline: 'CNCF 核心監控引擎——Pull 架構、Gorilla TSDB 壓縮與高基數陷阱全解析',
+    intro: `<p><b>Prometheus 要解決的問題：「系統出問題時，你要在幾秒鐘內知道，而不是等用戶打電話來。」</b>傳統做法是「有問題了才去查日誌」，Prometheus 的做法是「持續收集所有關鍵指標，讓問題在影響用戶之前就被偵測到」。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ Pull vs Push：為什麼 Prometheus 選擇「主動去問」而非「等人回報」：</b><br><br>
+
+    <b>Push 架構（傳統做法）</b>：每個服務「主動」把指標推送給監控系統。問題：當一個服務崩潰死掉了，它無法再推送任何東西——監控系統看到的是「沉默」，但這個沉默可能是「沒有新資料」，也可能是「服務掛掉了」，它無法區分。<br><br>
+
+    <b>Pull 架構（Prometheus 的做法）</b>：Prometheus 每 15 秒主動去問每個服務「你現在狀態如何？」。當一個服務崩潰，它不再回應這個問題，Prometheus 立刻知道「這個服務消失了」，並觸發告警。<b>消失偵測（Disappearance Detection）是 Pull 架構的天然優勢。</b><br><br>
+
+    <b>▶ 四種指標類型，用白話解釋使用場景：</b><br><br>
+
+    <b>① Counter（只增不減的計數器）</b><br>
+    想像里程表：它只會往上加，永遠不會倒退（除非重啟歸零）。<br>
+    使用場景：HTTP 請求總數、錯誤發生次數、處理的訂單總量<br>
+    查詢時用 <code>rate()</code>：計算「最近 5 分鐘每秒增加了多少」= 每秒請求數（RPS）<br>
+    ⚠️ 直接用 Counter 的值（如 1,000,000 次請求）沒有意義，要用 rate() 看增長速率<br><br>
+
+    <b>② Gauge（可增可減的即時值）</b><br>
+    想像溫度計：隨時可以上升或下降。<br>
+    使用場景：當前記憶體使用量、當前線程池佔用、佇列待處理數量<br>
+    直接讀取當前值就有意義，不需要 rate()<br><br>
+
+    <b>③ Histogram（分桶統計，適合延遲分析）</b><br>
+    把所有回應時間按「桶」分類：0-10ms 有多少請求、10-50ms 有多少、50-200ms 有多少、200ms 以上有多少。<br>
+    查詢時用 <code>histogram_quantile(0.95, ...)</code> 計算 P95（最慢的 5% 用戶的門檻）<br>
+    優點：多個 Pod 的數據可以在 Server 端合併計算<br><br>
+
+    <b>▶ High Cardinality 為什麼會讓 Prometheus 崩潰：</b><br>
+    Prometheus 用「Label 組合」作為每個監控序列的唯一識別。每個唯一的組合 = 一個 Series，在記憶體裡佔約 1KB。如果你把「用戶 ID」放進 Label，100 萬個不同的用戶 ID = 100 萬個 Series = 1GB 記憶體，只是一個指標就吃掉了 1GB。這就是「高基數災難（High Cardinality）」。<br>
+    <b>規則：Label 的唯一值數量應低於 1000。</b>追蹤特定用戶的行為，請用 Distributed Tracing（如 Jaeger）而不是 Prometheus。
+    </div>`,
+
+    case: `<p><b>案例一：金融微服務 user_id Label 引發 OOM（High Cardinality 災難）</b><br>
+    某金融平台工程師為了方便追蹤每個用戶的支付延遲，在 Histogram 中加入了 <code>user_id</code> Label：<code>payment_latency_seconds_bucket{user_id="U-1234567", region="TW"}</code>。雙 11 大流量時，百萬用戶同時付款，Prometheus TSDB 的 Series 數量在 3 分鐘內從 50 萬暴增至 1200 萬，記憶體從 8GB 飛漲至 64GB，觸發 OOM Killer，Prometheus 崩潰重啟，監控全盲長達 47 分鐘。</p>
+    <p><b>案例二：Kubernetes 叢集 Pod Label 基數爆炸（真實 SRE 踩坑）</b><br>
+    某 K8s 平台工程師在 PodInfo 指標中加入了 <code>pod_name</code> Label（每個 Pod 有唯一名稱），而 Kubernetes 在 Rolling Update 時會不斷創建新 Pod 並刪除舊 Pod。每次部署後都有新的 <code>pod_name</code> 唯一值，舊的 Series 在 TSDB 中作為「過期 Series（Stale Series）」殘留至少 5 分鐘（Prometheus 的 Staleness 機制）。每週部署 50 次 × 10 個 Replica × 舊 Pod 數，Series 爆炸成數十萬個，TSDB 記憶體緩慢洩漏。</p>
+    <p><b>案例三：Thanos / VictoriaMetrics 解決 Prometheus 長期儲存問題</b><br>
+    Prometheus 本地儲存設計為短期儲存（15 天預設），不適合長期歷史查詢與多實例水平擴展。工業界有兩個主流解決方案：<b>Thanos</b>（Improbable 開源，將 TSDB Block 上傳至 S3/GCS，提供全局查詢視圖）和 <b>VictoriaMetrics</b>（俄羅斯團隊開發，使用自訂 Column-store 壓縮算法，聲稱比 Prometheus 快 3-5 倍，記憶體使用減少 70%，已被多個超大型生產環境採用）。</p>`,
+
+    analogies: [
+    { icon: '⚡', title: '電廠的 SCADA 中央調度監控', body: '每台發電機（微服務）安裝了感測器，Prometheus 每 15 秒主動詢問每台機器當前狀態（Pull 架構）。如果某台發電機沉默（沒有回應 /metrics），監控系統立刻知道那台機器可能出問題了。而 Push 架構下，沉默可能只是「它沒有新數據要推」——你無法區分「正常安靜」和「已經掛掉」。這就是 Pull 架構天生具備「消失偵測」能力的本質原因。' },
+    { icon: '🌡️', title: '氣象局的全國自動氣象站網絡', body: '台灣各地布建了 700 個自動氣象站（各微服務），每個氣象站每 10 分鐘記錄溫度、濕度、雨量（metrics）。中央氣象署（Prometheus）每 10 分鐘主動向每個站台拉取數據（Pull），存入時序資料庫。High Cardinality 災難 = 如果每筆氣象數據都帶上「觀測員的員工編號」作為 Label，幾百名員工就讓 Series 數量從 700 暴增至 70 萬，資料庫記憶體瞬間爆炸。' },
+    { icon: '🏥', title: 'ICU 病患生命徵象監控系統', body: '每位病患身上貼著心電圖、血壓計、血氧儀（每個微服務的 /metrics 端點）。護理站的中央監護儀（Prometheus）每秒主動讀取所有床位的數據（Pull），存入時序資料庫，保存 90 天歷史波形。若某床病患突然沉默（Pod 崩潰），Prometheus 立刻偵測到該 Target 消失並觸發警報——Pull 架構天生具備「消失偵測」能力，Push 架構做不到這一點。' },
+    { icon: '📦', title: 'Amazon 倉庫的庫存追蹤系統', body: 'Counter（只增不減）= 商品入庫總計數，永遠往上累加；Gauge（可增可減）= 當前庫存實際數量，隨出入貨上下浮動；Histogram = 訂單從下單到出貨的處理時間分布，大多數在 2 小時內，少數需要 24 小時（長尾延遲）。High Cardinality 災難 = 如果把每件商品的 SKU 條碼放進 Prometheus Label，每天數千萬種商品的唯一 SKU 會讓 Prometheus 記憶體瞬間崩潰。Label 只能放「類別」而非「具體商品 ID」。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    Prometheus 的正確使用方式是<b>只追蹤「聚合後的系統指標」，不追蹤「個別用戶的行為」</b>。這個原則直接決定了哪些東西放 Label、哪些東西不能放 Label，以及不同指標類型的選擇。</p>
+
+    <p><b>1. 四個黃金信號的 PromQL 查詢</b><br>
+    為什麼是這四個指標？Google SRE 在實踐中發現，幾乎所有生產問題都能從這四個維度被偵測到：延遲（用戶體驗）、流量（系統負載）、錯誤率（系統健康）、飽和度（資源是否快撐不住了）。如果這四個指標都正常，系統幾乎不可能有嚴重問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0"># 1. 延遲：P95 回應時間（用 Histogram 才能正確計算分位數）
+histogram_quantile(0.95,
+  sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))
+
+# 2. 流量：每秒請求數（Counter 搭配 rate()）
+sum(rate(http_requests_total[1m])) by (service, status_code)
+
+# 3. 錯誤率：5xx 錯誤比例（成功 = 100% 減去錯誤比例）
+1 - sum(rate(http_requests_total{status!~"5.."}[5m]))
+  / sum(rate(http_requests_total[5m]))
+
+# 4. 飽和度：連線池使用率（如果超過 80%，延遲就要開始上升了）
+hikaricp_connections_active / hikaricp_connections_max</pre>
+
+    <p><b>2. Alertmanager 告警規則——讓「持續超標」才告警，避免告警轟炸</b><br>
+    為什麼要加 <code>for: 2m</code>？因為偶發的尖峰（例如一個超慢查詢）可能讓 P95 短暫超過閾值 30 秒，然後就恢復正常了。如果立刻告警，工程師半夜被叫起來，發現什麼都沒事，之後就開始忽略告警（告警疲勞）。<code>for: 2m</code> 確保問題持續 2 分鐘才是真正需要人工介入的問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">groups:
+  - name: api.critical
+    rules:
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m      # 持續超標 2 分鐘才觸發，避免因為偶發尖峰造成告警轟炸
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "服務 {{ $labels.service }} P95 延遲達 {{ $value }}s"
+          runbook: "https://wiki.company.com/runbook/high-latency"</pre>`,
+
+    reading: ['Gorilla: A Fast, Scalable, In-Memory Time Series Database - Pelkonen et al., VLDB 2015', 'Prometheus: Up & Running (2nd Ed.) - Brian Brazil, O\'Reilly', 'Thanos GitHub - thanos.io', 'VictoriaMetrics Documentation - victoriametrics.com', 'CNCF Prometheus Project Page']
+  },
+
+  { id: 11, label: 'Grafana', stage: 4, mastered: false,
+    tagline: '開源視覺化平台的工業標準——PromQL 精妙查詢、Dashboard as Code 與 SLO 看板設計',
+    intro: `<p><b>Grafana 要解決的問題：「Prometheus 收集了大量數字，但人腦沒辦法直接讀數字判斷系統健不健康。」</b>Grafana 把時序數據轉化成人類能立刻理解的視覺化圖表，讓 SRE 在大螢幕前一眼判斷：系統正常（全綠）、系統告警（黃色）、系統崩潰（紅色閃爍）。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ PromQL 語法白話解讀——讓你真正看懂那些查詢在幹嘛：</b><br><br>
+
+    <b>rate() 函數——為什麼 Counter 要搭配 rate() 才有意義</b><br>
+    <code>http_requests_total</code> 這個 Counter 從系統啟動就一直在增加，目前值是 5,000,000。這個數字本身沒有意義——是在 1 天內發生的，還是在 1 分鐘內發生的？<br>
+    <code>rate(http_requests_total[5m])</code> = 過去 5 分鐘，這個 Counter 每秒平均增加多少 = 每秒請求數（RPS）。這才是有業務意義的指標。<br><br>
+
+    <b>irate() vs rate()——兩者差異</b><br>
+    <code>rate()</code>：計算整個時間窗口的平均速率，適合趨勢圖（較平滑）<br>
+    <code>irate()</code>：只看最後兩個數據點計算瞬時速率，適合告警（對突波更敏感）<br>
+    如果你的告警用 rate() 但平滑掉了一個 30 秒的流量尖峰，你就漏掉了一個真實問題。<br><br>
+
+    <b>histogram_quantile() 的原理——為什麼 P95 是估算值</b><br>
+    Prometheus 的 Histogram 是分桶統計：&lt;10ms 的請求有 800 個、10-50ms 的有 150 個、50-200ms 的有 40 個、&gt;200ms 的有 10 個（共 1000 個請求）。<br>
+    P95 = 第 950 個最慢的請求 = 落在「50-200ms」的桶裡。但是這個桶裡有 40 個請求，分佈在 50-200ms 之間，我們不知道 P95 具體是 51ms 還是 199ms。<br>
+    <code>histogram_quantile</code> 用線性內插猜測：假設這 40 個請求均勻分佈在 50-200ms 之間，P95 約在 87ms 附近。這是<b>估算值，不是精確值</b>——但對監控來說已經足夠準確。<br><br>
+
+    <b>▶ Dashboard as Code 為什麼是現代 SRE 的必要實踐：</b><br>
+    問題：手動在 Grafana UI 拖拉圖表，兩個月後沒有人記得為什麼某個閾值設成 300ms 而不是 200ms，也沒有人知道 Staging 和 Production 的 Dashboard 為什麼長得不一樣。<br>
+    解法：用 Grafonnet（Jsonnet）把 Dashboard 定義成代碼，commit 進 Git，每次改動都有 PR 和 Code Review，所有環境通過 CI/CD 自動同步，閾值的設定有版本歷史可查。
+    </div>`,
+
+    case: `<p><b>案例一：支付系統雙 11 P99 突破告警（Grafana Alert + Webhook）</b><br>
+    某支付平台在 Grafana 配置了 <code>histogram_quantile(0.99, ...)</code> PromQL 查詢，設定當 P99 超過 300ms 持續 1 分鐘即觸發告警。雙 11 當天 14:12:38，P99 突破 300ms 閾值，Grafana 截圖當前 Dashboard 並透過 Webhook 推送至 PagerDuty，同時發送 Slack 通知到 #incident-response 頻道，值班 SRE 在 1 分 20 秒內確認是第三方收單行通道過載，切換備用通道，P99 在 3 分鐘內恢復正常。</p>
+    <p><b>案例二：Cloudflare 的 Grafana 規模化運維（公開 Blog）</b><br>
+    Cloudflare 在其工程部落格（2023）分享，其 Grafana 環境管理 15,000+ 個 Dashboard 面板，由 300+ 名工程師共同維護。他們採用 Dashboard as Code 策略，所有 Dashboard 定義存儲在 Git 倉庫，通過 CI/CD 自動同步至多個 Grafana 實例（Production、Staging、各 PoP 節點），並使用 Dashboard 測試腳本（k6 + Grafana API）自動驗證關鍵 Panel 的查詢是否返回有效數據。</p>
+    <p><b>案例三：Error Budget 追蹤 Dashboard（SRE SLO 管理）</b><br>
+    根據 Google SRE 模型，每個服務有一個 SLO（如月度可用性 99.9% = 允許每月 43.8 分鐘停機）。「Error Budget」= SLO 允許的最大錯誤量 - 已消耗量。Grafana Dashboard 實時顯示剩餘 Error Budget，當 Error Budget 剩餘 &lt; 20% 時自動凍結新功能上線，優先修復可靠性問題，將「業務速度」與「可靠性」的 Trade-off 透明化給所有利益相關方。</p>`,
+
+    analogies: [
+    { icon: '🏥', title: '現代化醫院中央監護系統', body: 'Prometheus = ICU 裡連在每位病患身上的生命徵象感測器（持續採樣）。Grafana = 護理站的大型中央顯示器，把所有床位的即時心電圖、血壓趨勢、血氧歷史曲線以直觀彩色圖表呈現。Dashboard as Code = 醫療設備公司的標準化顯示器配置，確保所有醫院、所有班次的螢幕顯示相同、經過審核的指標界面，而不是每位護士自己亂調警報閾值。' },
+    { icon: '✈️', title: '飛行員的玻璃駕艙（Glass Cockpit）', body: '老式飛機有幾十個獨立機械儀表分散在駕艙各處，飛行員要同時掃視所有儀表（像看一堆原始 Prometheus 數字）。現代玻璃駕艙把所有關鍵數據整合在幾個大螢幕上，以直觀圖形呈現高度、空速、引擎推力、燃油量（對應 Grafana Dashboard 的四個黃金信號）。PromQL Recording Rules = 把複雜計算預先算好快取，就像 FMS 飛行管理系統預先計算最佳航路，而非每次臨時計算。' },
+    { icon: '📺', title: '選舉開票夜的即時大螢幕', body: '大選開票時，電視台的巨型螢幕顯示各縣市即時票數、得票率折線圖、剩餘待開票比例（這就是 Grafana Dashboard）。資料來源是各地的開票員（Prometheus）每隔幾分鐘回報最新票數（Scraping）。PromQL 的 rate() = 計算「每分鐘新增票數」讓觀眾了解開票速度；Dashboard as Code = 確保台北、台中、高雄的開票大螢幕版面完全一致，不用每個縣市工程師手動設定。' },
+    { icon: '🗺️', title: 'Google Maps 的即時交通熱力圖', body: 'Prometheus = 數百萬台手機 GPS 持續回報位置與速度（metrics 採集）。Grafana = 把這些數據轉化成道路上的顏色標示：綠色（暢通）、黃色（稍慢）、紅色（嚴重塞車）——讓駕駛人一眼判斷路況（就像 SRE 一眼判斷系統健康）。High Cardinality = 如果把每輛車的車牌放進 Label，全台灣 800 萬輛車讓 TSDB 記憶體立刻爆炸。正確做法是只記錄路段 ID（低基數 Label）而非個別車輛。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    Grafana 的正確使用姿勢是「<b>數據驅動決策，而非感覺驅動決策</b>」。每個 Panel 都應該能回答一個明確的業務問題，而不是「我覺得展示這個指標可能有用」。解法圍繞讓 Dashboard 更精準、更快、更可維護。</p>
+
+    <p><b>1. Recording Rules——讓複雜查詢預先計算，Dashboard 才不會卡</b><br>
+    為什麼高頻率刷新的 Dashboard 需要 Recording Rules？因為 <code>histogram_quantile(0.95, sum(rate(...)))</code> 這樣的查詢在資料量大時需要掃描大量 TSDB 數據，每次 Dashboard 刷新（預設 30 秒）都重新計算，會給 Prometheus Server 帶來持續壓力，讓其他告警查詢也變慢。Recording Rules 把這個計算結果存成一個新的 Series，後續查詢直接讀這個 Series，速度快 10-100 倍。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0"># prometheus-rules.yaml
+groups:
+  - name: slo_precompute
+    interval: 30s   # 每 30 秒預先計算一次，結果存成新 Series
+    rules:
+      - record: job:http_request_duration_p95:rate5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m]))
+            by (le, service))
+# Grafana 的查詢改成：
+# job:http_request_duration_p95:rate5m{service="payment"}
+# 這個查詢幾乎瞬間完成（直接讀取預計算結果）</pre>
+
+    <p><b>2. SLO Error Budget Dashboard——讓「可靠性 vs 速度」的 Trade-off 可視化</b><br>
+    為什麼需要 Error Budget？因為沒有 Error Budget，可靠性目標是模糊的。「我們要求 99.9% 可用性」聽起來很高，但 99.9% 的意思是「每月允許 43.8 分鐘停機」。Error Budget = 月度允許停機時間 - 已用停機時間。當 Error Budget 剩餘不到 20%，自動凍結所有新功能上線，直到月底。這把「要快還是要穩」的決策從爭論變成了數學問題。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0"># Error Budget 消耗率（過去 1 小時）
+# 若這個值 > 1，代表你消耗 Error Budget 的速度比允許的還快
+(1 - sum(rate(http_requests_total{status!~"5.."}[1h]))
+   / sum(rate(http_requests_total[1h])))
+/ (1 - 0.999)  # 0.999 = 99.9% SLO 目標</pre>`,
+
+    reading: ['Grafana Official Documentation - grafana.com/docs', 'Site Reliability Engineering - Beyer, Jones, Petoff, Murphy (Google / O\'Reilly)', 'Grafonnet Library - github.com/grafana/grafonnet', 'Grizzly CLI - github.com/grafana/grizzly', 'Four Golden Signals - Google SRE Book Chapter 6']
+  },
+
+  { id: 12, label: '效能黃金三角', stage: 4, mastered: false,
+    tagline: 'Little\'s Law、Universal Scalability Law 與排隊理論——容量規劃的數學基石',
+    intro: `<p><b>效能黃金三角要面對一個殘酷的現實：吞吐量、延遲、資源消耗，你最多只能同時優化其中兩個。</b>想要極高吞吐量 + 極低延遲？需要消耗大量資源（更多伺服器）。想要極高吞吐量 + 極低資源消耗？延遲必然上升（讓請求排隊等待）。想要極低延遲 + 極低資源消耗？吞吐量只能很小（一次只服務一個用戶）。理解這個三角，才能在架構設計時做出正確的取捨。</p>
+
+    <div style="border-left:3px solid #38bdf8;padding:10px 12px;margin:10px 0;background:rgba(56,189,248,0.05);border-radius:0 8px 8px 0">
+    <b style="color:#94a3b8;font-size:0.875em">▶ Little's Law 白話解釋——讓你直覺理解系統為什麼會雪崩：</b><br><br>
+
+    <b>公式：L = λ × W</b><br>
+    L = 系統裡同時有多少個「進行中的請求」<br>
+    λ（lambda）= 每秒新進來的請求數（RPS）<br>
+    W = 每個請求平均要等多久才完成（延遲）<br><br>
+
+    <b>用咖啡店舉例：</b><br>
+    咖啡師每分鐘能做 6 杯咖啡（服務速率 μ = 6/min）<br>
+    早上尖峰時每分鐘進來 5.7 個客人（到達率 λ = 5.7/min）<br>
+    根據排隊理論，利用率 ρ = 5.7/6 = 95%，平均等待時間 = 1/(6-5.7) = 3.3 分鐘<br><br>
+
+    現在，一個代碼改動讓咖啡師每次做咖啡多花 10 秒（相當於資料庫查詢多了 10ms）：<br>
+    服務速率從 6/min 降到 5.5/min，ρ = 5.7/5.5 = 103%——<b>超過 100% 系統開始崩潰！</b><br>
+    等待時間從 3.3 分鐘 → 無限大，客人開始離開（請求超時），<b>雪崩開始了。</b><br><br>
+
+    這就是為什麼在高利用率的系統上，一個看起來微不足道的效能退化（+10ms），可以引發整個系統崩潰。Little's Law 是理解這個現象的數學工具。<br><br>
+
+    <b>▶ 四大降級策略——系統快撐不住時的自我保護機制：</b><br><br>
+
+    <b>① Rate Limiting（限流）——控制門口的流量</b><br>
+    Token Bucket 算法：想像一個桶，每秒自動放入 10 個令牌。每個請求進來前，必須先從桶裡拿走一個令牌。桶空了就拒絕請求（HTTP 429）。優點：允許短時間的突發流量（桶裡有存量），同時限制長期平均速率。<br><br>
+
+    <b>② Circuit Breaker（熔斷）——快速失敗，不讓等待傳播</b><br>
+    當下游服務（如推薦系統）回應變慢，如果繼續等待，你的執行緒池會被佔滿，連帶讓主服務也無法回應。熔斷器偵測到失敗率超過閾值，就「斷路」：後續請求立刻返回降級回應（如「暫時無推薦內容，顯示熱門商品」），而不等待超時。<b>快速失敗比慢慢等死要好。</b><br><br>
+
+    <b>③ Bulkhead（艙壁隔離）——不讓一個問題拖垮整個系統</b><br>
+    把不同的服務依賴（推薦 API、支付 API、物流 API）用獨立的執行緒池隔離。推薦 API 崩潰佔滿了它自己的執行緒池，支付 API 完全不受影響，用戶還是可以正常付款。<br><br>
+
+    <b>④ Backpressure（背壓）——讓生產者減速，而非讓佇列無限增長</b><br>
+    當下游處理不過來，主動通知上游「慢一點發」，而不是讓佇列無限增長最終 OOM。這是 Reactive Programming 的核心概念。
+    </div>`,
+
+    case: `<p><b>案例一：高頻撮合引擎 Busy-waiting 雪崩（Little's Law 實例）</b><br>
+    某衍生品交易所的撮合引擎為追求微秒級延遲採用 Spin-wait（CPU 空轉輪詢），導致 CPU 常態性 100%（ρ ≈ 1）。市場波動時 QPS 從 2000 暴增至 5000（λ增加），此時 W（延遲）因 DB 磁碟 I/O 從 2ms 增加至 20ms。根據 Little's Law，L = 5000 × 0.02 = 100 個並行請求，但 Thread Pool 大小為 50，導致請求積壓。積壓的請求佔用更多記憶體，引發 GC Pressure，GC STW 讓延遲進一步增加至 200ms，L 再次暴增... 形成正反饋雪崩，最終全服務崩潰。</p>
+    <p><b>案例二：Netflix Hystrix 熔斷器設計（公開技術案例）</b><br>
+    Netflix 工程師 Ben Christensen 在 QCon 2014 分享，Netflix 的 API Gateway 依賴 30+ 個下游微服務。在無熔斷保護時，當推薦服務（Recommendation Service）因資料庫問題響應變慢，API Gateway 所有執行緒都在等待推薦服務，導致整個 API Gateway 無法處理任何其他請求（依賴關係的 Bulkhead 問題）。Hystrix 熔斷器為每個下游服務獨立維護一個 Thread Pool（隔離）和 Circuit Breaker，即使推薦服務完全崩潰，其他服務的請求仍然正常處理，降級返回「熱門影片列表」等緩存數據。</p>
+    <p><b>案例三：Redis 限流 Token Bucket（Stripe 生產實踐）</b><br>
+    Stripe 的公開技術文章（2015）描述其使用 Redis + Lua Script 實作 Token Bucket 限流算法，為每個商戶 API Key 獨立維護令牌桶。令牌桶的優點：允許突發（Burst）流量（在令牌充足時），同時限制平均速率，比固定窗口計數器（Fixed Window Counter）更適合真實的 API 使用模式（用戶有時會批次操作）。Lua Script 保證了計數、比較、更新的原子性，防止 Race Condition。</p>`,
+
+    analogies: [
+    { icon: '🚇', title: '台北捷運的尖峰小時容量管理', body: '吞吐量 = 每小時通過閘口的旅客數；延遲 = 每位旅客從進站到出站的總耗時；資源利用率 = 月台和車廂的佔用比率。尖峰時段（ρ→0.9），月台積壓旅客，排隊時間指數增加。捷運局的解法：進站閘口限流（Rate Limiting）、特定站人流管制（Circuit Breaker）、各線路資源獨立調度（Bulkhead）——直接對應系統可靠性工程的三大降級模式。' },
+    { icon: '🚚', title: '物流公司的三難困境', body: '極低延遲（立刻送達）= 一拿到包裹就立刻派一台卡車出發，卡車空跑（資源利用率極低），吞吐量極小。極高吞吐量（高資源利用率）= 卡車裝滿才出發，先下單的客人等很久（高延遲）。Little\'s Law = 如果送達時間（W）從 1 天增加到 3 天，在相同的訂單量（λ）下，同時在途的包裹數（L）暴增 3 倍，需要 3 倍的倉儲空間和運輸車輛——這是資源崩潰的數學根源。' },
+    { icon: '☕', title: '咖啡店的尖峰時刻佇列理論', body: '早上 8 點，咖啡師每分鐘能做 3 杯（服務率 μ=3），客人每分鐘進來 2.9 人（到達率 λ=2.9）。M/M/1 排隊模型告訴你：利用率 ρ=96.7%，平均等待時間 = 1/(3-2.9) = 10 分鐘！若代碼改動讓每筆訂單的 DB 查詢從 50ms 增加到 55ms（服務率 μ 微幅下降），在高流量下這個微小差異就能讓佇列從 5 人積壓到 50 人，觸發連鎖雪崩。' },
+    { icon: '🏊', title: '游泳池的進出場管理', body: '游泳池（伺服器）最多同時容納 50 人（連線池上限 L）。Circuit Breaker = 當池子裡已有 45 人（ρ=90%）時，入口閘門自動轉成「等候」狀態，讓新進場的人在外面等，而不是讓 51 個人擠進一個只設計給 50 人的泳池（連線池耗盡導致所有請求超時）。Bulkhead 艙壁 = 蛙式道和自由式道各自獨立計算人數上限，快泳道爆滿不會影響你在兒童淺水區悠閒游泳（不同服務的連線池互相隔離）。' }
+  ],
+
+    solution: `<p><b>為什麼要這樣解決？</b><br>
+    效能黃金三角的問題不能靠「更多硬體」永久解決（因為 Little's Law 告訴你，利用率接近 100% 時，加硬體只是短暫緩解問題）。根本解法是<b>控制進入系統的流量、快速降級慢速依賴、隔離不同服務的資源消耗</b>。</p>
+
+    <p><b>1. Resilience4j Circuit Breaker——讓慢速依賴不拖垮整個服務</b><br>
+    為什麼設 <code>slidingWindowSize: 100</code>？因為用最近 100 個請求的成功率來判斷服務健康狀況，既不會因為 1 個失敗就熔斷（太敏感），也不會因為舊的好結果掩蓋新的問題（太遲鈍）。<code>waitDurationInOpenState: 30s</code> 是「熔斷後等 30 秒再嘗試放行幾個試探請求」，讓下游服務有恢復的機會，而不是永遠熔斷。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">// 宣告熔斷器，並指定降級方法
+@CircuitBreaker(name = "recommendation", fallbackMethod = "getHotItemsFallback")
+public List&lt;Item&gt; getRecommendations(String userId) {
+    return recommendationService.fetch(userId);  // 可能很慢的外部呼叫
+}
+// 熔斷器打開時，自動呼叫這個降級方法，立刻回傳快取的熱門商品
+private List&lt;Item&gt; getHotItemsFallback(String userId, Exception ex) {
+    return cache.getHotItems();  // 毫秒級回應，不依賴任何外部服務
+}
+
+# application.yml
+resilience4j.circuitbreaker.instances.recommendation:
+  slidingWindowSize: 100          # 用最近 100 個請求計算失敗率
+  failureRateThreshold: 50        # 失敗率 > 50% 就熔斷
+  waitDurationInOpenState: 30s    # 熔斷後等 30 秒再試探
+  permittedCallsInHalfOpenState: 5 # 試探時只放行 5 個請求</pre>
+
+    <p><b>2. Token Bucket 限流（Redis Lua 原子操作）</b><br>
+    為什麼用 Lua Script 而不是普通的 Redis 命令序列？因為「查詢令牌數量、判斷是否足夠、扣除令牌」這三步操作必須是<b>原子的</b>。如果兩個請求同時通過了「查詢」步驟（都看到 1 個令牌），然後兩個都「扣除」（令牌變成 -1），就允許了超過限制的請求通過。Lua Script 在 Redis 服務端原子執行，保證不會有這種競態條件。</p>
+    <pre style="background:#020617;color:#34d399;padding:10px;border-radius:8px;font-size:0.75em;overflow-x:auto;margin:8px 0">-- Redis Lua Script（在伺服器端原子執行，無競態問題）
+local tokens = tonumber(redis.call('GET', KEYS[1]) or ARGV[1])
+local now = tonumber(ARGV[2])
+local last_ts = tonumber(redis.call('GET', KEYS[2]) or now)
+local elapsed = now - last_ts
+-- 根據流逝的時間補充令牌（每秒補充 rate 個）
+tokens = math.min(tonumber(ARGV[1]), tokens + elapsed * tonumber(ARGV[3]))
+if tokens >= 1 then
+    redis.call('SET', KEYS[1], tokens - 1, 'EX', 86400)
+    redis.call('SET', KEYS[2], now, 'EX', 86400)
+    return 1  -- 允許通過
+else
+    return 0  -- 拒絕，回 HTTP 429
+end</pre>`,
+
+    reading: ['Little\'s Law (1961) - John D.C. Little, Operations Research', 'The Universal Scalability Law - Neil Gunther, CMG Conference 1993', 'Release It! Design and Deploy Production-Ready Software (2nd Ed.) - Michael Nygard', 'Designing Distributed Systems - Brendan Burns (O\'Reilly)', 'Netflix Hystrix - github.com/Netflix/Hystrix (Archived)']
+  }
+];
+
+const connections = [
+  { from:1, to:2 }, { from:2, to:3 }, { from:3, to:4 },
+  { from:4, to:5 }, { from:4, to:6 }, { from:5, to:7 },
+  { from:7, to:8 }, { from:7, to:9 }, { from:8, to:12 },
+  { from:9, to:12 }, { from:10, to:11 }, { from:10, to:12 }
+];
+
+const THEMES = {
+  1: { border:'#38bdf8', fill:'#0c4a6e' },
+  2: { border:'#818cf8', fill:'#1e1b4b' },
+  3: { border:'#34d399', fill:'#064e3b' },
+  4: { border:'#fbbf24', fill:'#451a03' }
+};
+
+/* ── 物理引擎狀態 ── */
+const physics = {
+  enabled: true,
+  gravity: 0.04, stageGravity: 0.16, repulsion: 2000,
+  spring: 0.045, len: 90, friction: 0.83
+};
+
+let selectedNode = null;
+let draggedNode  = null;
+let hoverNode    = null;
+let activeFilter = 'all';
+let searchQuery  = '';
+
+/* ── 初始佈局 ── */
+function resetLayout() {
+  const w = canvasWrap.clientWidth  || 600;
+  const h = canvasWrap.clientHeight || 400;
+  concepts.forEach(n => {
+    n.x  = w * (0.125 + (n.stage - 1) * 0.25) + (Math.random() - 0.5) * 40;
+    n.y  = h * 0.5 + (Math.random() - 0.5) * 100;
+    n.vx = 0; n.vy = 0;
+  });
+}
+
+/* ── 物理開關 ── */
+function togglePhysics() {
+  physics.enabled = !physics.enabled;
+  const btn = document.getElementById('physics-btn');
+  if (physics.enabled) {
+    btn.textContent = '開啟';
+    btn.style.background = '#059669';
+  } else {
+    btn.textContent = '關閉';
+    btn.style.background = '#dc2626';
+    concepts.forEach(n => { n.vx = 0; n.vy = 0; });
+  }
+}
+
+/* ── 篩選器 ── */
+function setStageFilter(stage) {
+  activeFilter = stage;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  const id = stage === 'all' ? 'filter-all' : 'filter-' + stage;
+  document.getElementById(id).classList.add('active');
+  if (stage !== 'all') {
+    const first = concepts.find(n => n.stage === stage);
+    if (first) { selectedNode = first; loadDetails(first); }
+  }
+}
+
+/* ── 主 tick 迴圈 ── */
+function tick() {
+  const w = canvasWrap.clientWidth  || 600;
+  const h = canvasWrap.clientHeight || 400;
+
+  concepts.forEach(n => { n.vx = n.vx||0; n.vy = n.vy||0; });
+
+  if (physics.enabled) {
+    // 斥力
+    for (let i = 0; i < concepts.length; i++) {
+      for (let j = i+1; j < concepts.length; j++) {
+        const a = concepts[i], b = concepts[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 140) {
+          const f = physics.repulsion / (d*d);
+          const fx = dx/d*f, fy = dy/d*f;
+          if (a !== draggedNode) { a.vx -= fx; a.vy -= fy; }
+          if (b !== draggedNode) { b.vx += fx; b.vy += fy; }
+        }
+      }
+    }
+    // 彈力
+    connections.forEach(c => {
+      const a = concepts.find(n => n.id === c.from);
+      const b = concepts.find(n => n.id === c.to);
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const d = Math.hypot(dx,dy)||1;
+      const f = (d - physics.len) * physics.spring;
+      const fx = dx/d*f, fy = dy/d*f;
+      if (a !== draggedNode) { a.vx += fx; a.vy += fy; }
+      if (b !== draggedNode) { b.vx -= fx; b.vy -= fy; }
+    });
+    // 分區牽引 + 邊界
+    concepts.forEach(n => {
+      if (n === draggedNode) return;
+      n.vx += (w*(0.125+(n.stage-1)*0.25) - n.x) * physics.stageGravity;
+      n.vy += (h*0.5 - n.y) * physics.gravity;
+      n.x += n.vx; n.y += n.vy;
+      n.vx *= physics.friction; n.vy *= physics.friction;
+      const r = n.mastered ? 40 : 36;
+      n.x = Math.max(r+10, Math.min(w-r-10, n.x));
+      n.y = Math.max(r+10, Math.min(h-r-10, n.y));
+    });
+  }
+
+  // ── 繪製 ──
+  ctx.clearRect(0, 0, w, h);
+
+  // 連線
+  connections.forEach(c => {
+    const a = concepts.find(n => n.id === c.from);
+    const b = concepts.find(n => n.id === c.to);
+    const aVis = (activeFilter==='all'||a.stage===activeFilter) && (!searchQuery||a.label.toLowerCase().includes(searchQuery));
+    const bVis = (activeFilter==='all'||b.stage===activeFilter) && (!searchQuery||b.label.toLowerCase().includes(searchQuery));
+    ctx.save();
+    ctx.globalAlpha = (aVis && bVis) ? 0.75 : 0.06;
+    ctx.lineWidth = 1.8;
+    const g = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+    g.addColorStop(0, THEMES[a.stage].border);
+    g.addColorStop(1, THEMES[b.stage].border);
+    ctx.strokeStyle = g;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    // 箭頭
+    const ang = Math.atan2(b.y-a.y, b.x-a.x);
+    const tr  = b.mastered ? 40 : 36;
+    const ax = b.x - tr*Math.cos(ang), ay = b.y - tr*Math.sin(ang);
+    ctx.fillStyle = THEMES[b.stage].border;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax-9*Math.cos(ang-Math.PI/6), ay-9*Math.sin(ang-Math.PI/6));
+    ctx.lineTo(ax-9*Math.cos(ang+Math.PI/6), ay-9*Math.sin(ang+Math.PI/6));
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+
+  // 節點
+  concepts.forEach(n => {
+    const isSel = selectedNode && selectedNode.id === n.id;
+    const isHov = hoverNode && hoverNode.id === n.id;
+    const vis   = (activeFilter==='all'||n.stage===activeFilter) && (!searchQuery||n.label.toLowerCase().includes(searchQuery));
+    const t = THEMES[n.stage];
+    const r = n.mastered ? 40 : 36;
+
+    ctx.save();
+    ctx.translate(n.x, n.y);
+    ctx.globalAlpha = vis ? 1 : 0.1;
+
+    ctx.shadowBlur  = isSel ? 22 : isHov ? 14 : 5;
+    ctx.shadowColor = n.mastered ? '#fbbf24' : t.border;
+
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.fillStyle = isSel ? t.border : '#0d1626';
+    ctx.fill();
+    ctx.lineWidth = isSel ? 3 : 1.8;
+    ctx.strokeStyle = n.mastered ? '#fbbf24' : t.border;
+    ctx.stroke();
+    ctx.shadowColor = 'transparent';
+
+    // 已掌握徽章
+    if (n.mastered) {
+      ctx.beginPath(); ctx.arc(26,-26,8,0,Math.PI*2);
+      ctx.fillStyle = '#fbbf24'; ctx.fill();
+      ctx.fillStyle = '#0f172a'; ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✓', 26, -25);
+    }
+
+    // 節點文字
+    ctx.fillStyle = isSel ? '#080c14' : '#f1f5f9';
+    // Scale canvas node labels with font setting
+    const canvasNodeFontPx = Math.round(13 * (FONT_SCALES[currentFontSize] || 1));
+    ctx.font = 'bold ' + canvasNodeFontPx + 'px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    const lbl = n.label;
+    if (lbl.includes(' / ')) {
+      const parts = lbl.split(' / ');
+      ctx.fillText(parts[0], 0, -7);
+      ctx.fillText(parts[1], 0, 7);
+    } else if (lbl.includes(' ') && lbl.length > 6) {
+      const sp = lbl.lastIndexOf(' ', Math.ceil(lbl.length/2));
+      ctx.fillText(lbl.slice(0,sp), 0, -7);
+      ctx.fillText(lbl.slice(sp+1), 0, 7);
+    } else if (lbl.length > 7) {
+      ctx.fillText(lbl.slice(0,4), 0, -7);
+      ctx.fillText(lbl.slice(4), 0, 7);
+    } else {
+      ctx.fillText(lbl, 0, 0);
+    }
+    ctx.restore();
+  });
+
+  requestAnimationFrame(tick);
+}
+
+/* ── 互動事件（Passive 相容） ── */
+function getXY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: cx-rect.left, y: cy-rect.top };
+}
+
+function hitNode(x, y) {
+  return concepts.find(n => {
+    const r = n.mastered ? 40 : 36;
+    return Math.hypot(n.x-x, n.y-y) < r;
+  });
+}
+
+canvas.addEventListener('mousedown', e => {
+  const {x,y} = getXY(e);
+  const n = hitNode(x,y);
+  if (n) { draggedNode = n; selectedNode = n; loadDetails(n); canvas.classList.add('dragging'); }
+});
+canvas.addEventListener('mousemove', e => {
+  const {x,y} = getXY(e);
+  if (draggedNode) { draggedNode.x = x; draggedNode.y = y; }
+  hoverNode = hitNode(x,y);
+  canvas.style.cursor = hoverNode ? 'pointer' : 'grab';
+});
+window.addEventListener('mouseup', () => { draggedNode = null; canvas.classList.remove('dragging'); });
+
+// touch: passive:false 僅在 canvas 本身（需要 preventDefault）
+canvas.addEventListener('touchstart', e => {
+  const {x,y} = getXY(e);
+  const n = hitNode(x,y);
+  if (n) { draggedNode = n; selectedNode = n; loadDetails(n); e.preventDefault(); }
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  const {x,y} = getXY(e);
+  if (draggedNode) { draggedNode.x = x; draggedNode.y = y; e.preventDefault(); }
+}, { passive: false });
+window.addEventListener('touchend', () => { draggedNode = null; }, { passive: true });
+
+/* ── 詳情載入 ── */
+function loadDetails(node) {
+  document.getElementById('placeholder-content').style.display = 'none';
+  const dyn = document.getElementById('dynamic-content');
+  dyn.style.display = 'block';
+
+  document.getElementById('node-title').textContent = node.label;
+  document.getElementById('node-tagline').textContent = node.tagline;
+  document.getElementById('node-intro').innerHTML = node.intro;
+  document.getElementById('node-case').innerHTML  = node.case;
+  // ── Analogies carousel ──
+  currentAnalogies = node.analogies || [];
+  currentAnalogyIdx = 0;
+  renderAnalogy();
+  document.getElementById('node-solution').innerHTML = node.solution;
+
+  const stageNames = ['基礎防衛','自動化防線','效能診斷','生產觀測'];
+  const tagColors = {
+    1:'background:rgba(14,116,144,0.2);color:#38bdf8;border:1px solid rgba(56,189,248,0.3)',
+    2:'background:rgba(67,56,202,0.2);color:#818cf8;border:1px solid rgba(129,140,248,0.3)',
+    3:'background:rgba(6,95,70,0.2);color:#34d399;border:1px solid rgba(52,211,153,0.3)',
+    4:'background:rgba(120,53,15,0.2);color:#fbbf24;border:1px solid rgba(251,191,36,0.3)'
+  };
+  const tag = document.getElementById('node-stage-tag');
+  tag.textContent = `STAGE ${node.stage} · ${stageNames[node.stage-1]}`;
+  tag.style.cssText = tagColors[node.stage];
+
+  const idx = concepts.findIndex(n => n.id === node.id);
+  document.getElementById('step-indicator').textContent = `步驟 ${idx+1} / ${concepts.length}`;
+
+  // 延伸閱讀
+  const readingEl = document.getElementById('node-reading');
+  readingEl.innerHTML = '';
+  node.reading.forEach(r => {
+    const span = document.createElement('span');
+    span.className = 'reading-tag';
+    span.innerHTML = '📚 ' + r;
+    readingEl.appendChild(span);
+  });
+
+  renderDiagram(node.id);
+  updateMasterBtn(node);
+
+  // 行動版：自動打開側邊欄
+  if (window.innerWidth <= 680) sidebar.classList.add('mobile-open');
+}
+
+/* ── 類比輪播邏輯 ── */
+let currentAnalogies = [];
+let currentAnalogyIdx = 0;
+
+function renderAnalogy() {
+  if (!currentAnalogies.length) return;
+  const a = currentAnalogies[currentAnalogyIdx];
+  const total = currentAnalogies.length;
+
+  // Fade out
+  const card = document.getElementById('analogy-card');
+  if (card) card.style.opacity = '0';
+
+  setTimeout(() => {
+    const iconEl  = document.getElementById('analogy-icon');
+    const titleEl = document.getElementById('analogy-title');
+    const bodyEl  = document.getElementById('analogy-body');
+    const counter = document.getElementById('analogy-counter');
+    const dots    = document.getElementById('analogy-dots');
+
+    if (iconEl)  iconEl.textContent  = a.icon;
+    if (titleEl) titleEl.textContent = a.title;
+    if (bodyEl)  bodyEl.innerHTML    = a.body;
+    if (counter) counter.textContent = (currentAnalogyIdx + 1) + ' / ' + total;
+
+    // Rebuild dots
+    if (dots) {
+      dots.innerHTML = '';
+      for (let i = 0; i < total; i++) {
+        const dot = document.createElement('span');
+        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;cursor:pointer;transition:all .2s;flex-shrink:0;';
+        dot.style.background = i === currentAnalogyIdx ? '#fbbf24' : '#334155';
+        dot.onclick = (function(idx){ return function(){ currentAnalogyIdx = idx; renderAnalogy(); }; })(i);
+        dots.appendChild(dot);
+      }
+    }
+
+    // Fade in
+    if (card) card.style.opacity = '1';
+  }, 180);
+}
+
+function nextAnalogy() {
+  if (!currentAnalogies.length) return;
+  currentAnalogyIdx = (currentAnalogyIdx + 1) % currentAnalogies.length;
+  renderAnalogy();
+}
+
+function prevAnalogy() {
+  if (!currentAnalogies.length) return;
+  currentAnalogyIdx = (currentAnalogyIdx - 1 + currentAnalogies.length) % currentAnalogies.length;
+  renderAnalogy();
+}
+
+/* ── 已掌握邏輯 ── */
+function toggleMastered() {
+  if (!selectedNode) return;
+  selectedNode.mastered = !selectedNode.mastered;
+  updateMasterBtn(selectedNode);
+  calcProgress();
+}
+function updateMasterBtn(n) {
+  const btn = document.getElementById('master-btn');
+  btn.className = n.mastered ? 'master-btn-active' : 'master-btn-default';
+  document.getElementById('master-icon').textContent = n.mastered ? '⭐' : '⚪';
+  document.getElementById('master-text').textContent = n.mastered ? '已掌握此概念' : '標記已掌握';
+}
+function calcProgress() {
+  const pct = Math.round(concepts.filter(n=>n.mastered).length / concepts.length * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-text').textContent = pct + '%';
+}
+
+/* ── 導覽 ── */
+function startWalkthrough() { selectedNode = concepts[0]; loadDetails(concepts[0]); }
+function navigateStep(dir) {
+  if (!selectedNode) return startWalkthrough();
+  const i = concepts.findIndex(n => n.id === selectedNode.id);
+  const ni = i + dir;
+  if (ni >= 0 && ni < concepts.length) { selectedNode = concepts[ni]; loadDetails(concepts[ni]); }
+}
+
+/* ═══════════════════════════════════════
+   互動圖表（精簡版，Google Sites 相容）
+═══════════════════════════════════════ */
+function renderDiagram(id) {
+  const cont = document.getElementById('diagram-container');
+  cont.innerHTML = '';
+
+  const D = {
+    1: `<div style="width:100%;font-size:0.875em">
+      <div style="display:flex;gap:6px;font-size:0.6875em;color:#64748b;justify-content:space-between;margin-bottom:6px">
+        <span>重構前後對比（點擊切換）</span><span style="color:#f87171">God Object vs SRP</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div id="d-bad" onclick="smellToggle(1)" style="padding:8px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(127,29,29,0.1);cursor:pointer">
+          <div style="font-weight:800;color:#f87171;font-size:0.75em;margin-bottom:4px">❌ God Object</div>
+          <pre style="font-size:0.6875em;color:#94a3b8;white-space:pre-wrap">class OrderProcessor {
+  // 2500 行程式碼
+  void pay() { ... }
+  void sendEmail() { ... }
+}</pre>
+        </div>
+        <div id="d-good" onclick="smellToggle(2)" style="padding:8px;border-radius:8px;border:1px solid rgba(52,211,153,0.2);background:rgba(6,78,59,0.1);cursor:pointer">
+          <div style="font-weight:800;color:#34d399;font-size:0.75em;margin-bottom:4px">✓ SRP 拆解</div>
+          <pre style="font-size:0.6875em;color:#94a3b8;white-space:pre-wrap">class PaymentGateway {
+  void pay() { ... }
+}
+class EmailNotifier {
+  void notify() { ... }
+}</pre>
+        </div>
+      </div>
+      <p id="d-fb" style="font-size:0.6875em;color:#64748b;text-align:center;margin-top:6px;font-style:italic">💡 點擊卡片查看上帝物件重構說明</p>
+    </div>`,
+    2: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:6px">BDD 行為驅動測試流程（點擊執行）</div>
+      <div style="background:#020617;border:1px solid #1e293b;padding:10px;border-radius:8px;font-family:monospace;font-size:0.75em;line-height:1.8">
+        <div><span style="color:#818cf8;font-weight:700">Given</span> 購物車完稅價格為 $2000 元</div>
+        <div><span style="color:#818cf8;font-weight:700">And</span> 進口關稅稅率為 5%</div>
+        <div><span style="color:#818cf8;font-weight:700">When</span> 調用 <span style="color:#34d399">calculateTax()</span></div>
+        <div><span style="color:#818cf8;font-weight:700">Then</span> 關稅總額應為 $100 元</div>
+        <div id="d-bdd" style="color:#475569;margin-top:4px">└─ [Assertion] expect(tax).toBe(100) → 未執行</div>
+      </div>
+      <div style="text-align:center;margin-top:8px">
+        <button onclick="runBdd()" style="padding:5px 12px;background:#4f46e5;color:white;border:none;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">執行 BDD 斷言</button>
+      </div>
+    </div>`,
+    3: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:6px">三點法臨界尺（點選年齡觀測系統回應）</div>
+      <div style="background:#020617;border:1px solid #1e293b;padding:8px;border-radius:8px;display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:8px">
+        <span style="color:#f87171;font-weight:700">17歲 Off-Point</span>
+        <span style="color:#34d399;font-weight:700">18歲 On-Point</span>
+        <span style="color:#34d399;font-weight:700">19歲 In-Point</span>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px">
+        <button onclick="bvaSel(17,'❌ Off-Point：系統拒絕，回傳「未滿法定年齡」錯誤碼。')" style="padding:4px 8px;background:rgba(127,29,29,0.3);border:1px solid #ef4444;color:#fca5a5;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">17 歲</button>
+        <button onclick="bvaSel(18,'✔ On-Point：系統核准，剛好踏在下界，>=  運算子驗證成功。')" style="padding:4px 8px;background:rgba(6,78,59,0.3);border:1px solid #34d399;color:#86efac;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">18 歲</button>
+        <button onclick="bvaSel(19,'✔ In-Point：系統核准，落入正常等價分類。')" style="padding:4px 8px;background:rgba(6,78,59,0.3);border:1px solid #34d399;color:#86efac;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">19 歲</button>
+      </div>
+      <div id="d-bva" style="font-size:0.6875em;color:#64748b;text-align:center;font-style:italic">💡 點選邊界測資，觀測系統在臨界附近的行為反應</div>
+    </div>`,
+    4: `<div style="width:100%;font-size:0.875em;text-align:center">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">測試金字塔（點擊各層）</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin-bottom:8px">
+        <button onclick="pyrSel('e2e')" style="width:80px;padding:4px;background:rgba(153,27,27,0.3);border:1px solid #ef4444;color:#fca5a5;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">E2E 10%</button>
+        <button onclick="pyrSel('int')" style="width:130px;padding:4px;background:rgba(67,56,202,0.3);border:1px solid #818cf8;color:#c7d2fe;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">Integration 20%</button>
+        <button onclick="pyrSel('unit')" style="width:180px;padding:4px;background:rgba(12,74,110,0.3);border:1px solid #38bdf8;color:#7dd3fc;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">Unit Tests 70%</button>
+      </div>
+      <div id="d-pyr" style="font-size:0.6875em;color:#64748b;font-style:italic">💡 點擊各層級查看策略與成本效益</div>
+    </div>`,
+    5: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">Git Push → Newman CI 流水線</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:0.75em">
+        <div style="flex:1;padding:6px;background:#0f172a;border:1px solid #1e293b;border-radius:6px;text-align:center">
+          <div style="color:#38bdf8;font-weight:700">Postman</div><div style="color:#64748b">本地調試</div>
+        </div>
+        <span style="color:#334155;font-size:1.0em">→</span>
+        <div style="flex:1;padding:6px;background:#0f172a;border:1px solid #1e293b;border-radius:6px;text-align:center">
+          <div style="color:#818cf8;font-weight:700">Git Push</div><div style="color:#64748b">觸發 CI</div>
+        </div>
+        <span style="color:#334155;font-size:1.0em">→</span>
+        <div id="d-newman" style="flex:1;padding:6px;background:#0f172a;border:1px solid #1e293b;border-radius:6px;text-align:center;transition:all 0.3s">
+          <div id="d-newman-t" style="color:#64748b;font-weight:700">Newman</div>
+          <div id="d-newman-s" style="color:#64748b">API 回歸</div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:10px">
+        <button onclick="runNewman()" style="padding:5px 12px;background:#4f46e5;color:white;border:none;border-radius:6px;font-size:0.75em;font-weight:700;cursor:pointer">啟動 CI 回歸</button>
+      </div>
+    </div>`,
+    6: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:6px">AST 突變注入模擬器（Stryker）</div>
+      <div style="background:#020617;border:1px solid #1e293b;padding:10px;border-radius:8px;font-family:monospace;font-size:0.75em;line-height:1.8;margin-bottom:8px">
+        <div style="color:#64748b">// 條件：items ≥ 5 件送禮</div>
+        <div>if (items.size <span id="d-mut" style="color:#38bdf8;font-weight:900">>=</span> 5) { addGift(); }</div>
+        <div id="d-mut-r" style="color:#34d399;font-weight:700">● 測試通過（覆蓋率 100%）</div>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <button onclick="injectMut('gt')" style="padding:4px 8px;background:rgba(127,29,29,0.3);border:1px solid #ef4444;color:#fca5a5;border-radius:6px;font-size:0.6875em;font-weight:700;cursor:pointer">突變1: 改成 &gt;</button>
+        <button onclick="injectMut('lt')" style="padding:4px 8px;background:rgba(127,29,29,0.3);border:1px solid #ef4444;color:#fca5a5;border-radius:6px;font-size:0.6875em;font-weight:700;cursor:pointer">突變2: 改成 &lt;</button>
+        <button onclick="injectMut('reset')" style="padding:4px 8px;background:#1e293b;border:1px solid #334155;color:#94a3b8;border-radius:6px;font-size:0.6875em;font-weight:700;cursor:pointer">重置</button>
+      </div>
+      <div id="d-mut-fb" style="font-size:0.6875em;color:#64748b;text-align:center;margin-top:6px;font-style:italic">💡 注入突變，檢驗測試集能否偵測邏輯篡改</div>
+    </div>`,
+    7: `<div style="width:100%;font-size:0.875em">
+      <div style="display:flex;justify-content:space-between;font-size:0.6875em;color:#64748b;margin-bottom:8px">
+        <span>K6 Constant Arrival Rate 負載模擬</span><span style="color:#34d399">SLA: P95 &lt;200ms</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:4px">
+        <span>VUs: <b id="d-k6-v" style="color:#34d399">100</b></span>
+        <span>預估延遲: <b id="d-k6-l" style="color:#34d399">45ms</b></span>
+      </div>
+      <input type="range" min="100" max="5000" value="100" oninput="updateK6(this.value)"
+        style="width:100%;accent-color:#34d399;margin-bottom:8px">
+      <div id="d-k6-s" style="padding:6px;border-radius:6px;background:rgba(6,78,59,0.2);border:1px solid rgba(52,211,153,0.3);text-align:center;font-size:0.75em;color:#34d399;font-weight:700">
+        🟢 系統優良：完全符合 SLA
+      </div>
+    </div>`,
+    8: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">效能退化偵測（Mann-Whitney U 統計檢定）</div>
+      <div style="margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:2px">
+          <span>Baseline P95</span><span style="color:#38bdf8;font-weight:700">45ms</span>
+        </div>
+        <div style="background:#1e293b;border-radius:9999px;height:6px"><div style="background:#38bdf8;height:100%;width:35%;border-radius:9999px"></div></div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:2px">
+          <span>Current PR P95</span><span id="d-rg-v" style="color:#ef4444;font-weight:700">112ms</span>
+        </div>
+        <div style="background:#1e293b;border-radius:9999px;height:6px"><div id="d-rg-b" style="background:#ef4444;height:100%;width:85%;border-radius:9999px;transition:all .4s"></div></div>
+      </div>
+      <div style="display:flex;gap:6px;justify-content:center">
+        <button onclick="rgSim(true)" style="padding:4px 8px;background:rgba(127,29,29,0.3);border:1px solid #ef4444;color:#fca5a5;border-radius:6px;font-size:0.6875em;font-weight:700;cursor:pointer">模擬 N+1 引入</button>
+        <button onclick="rgSim(false)" style="padding:4px 8px;background:rgba(6,78,59,0.3);border:1px solid #34d399;color:#86efac;border-radius:6px;font-size:0.6875em;font-weight:700;cursor:pointer">模擬索引最佳化</button>
+      </div>
+      <div id="d-rg-s" style="margin-top:8px;padding:6px;border-radius:6px;background:rgba(127,29,29,0.15);border:1px solid rgba(239,68,68,0.2);text-align:center;font-size:0.75em;color:#f87171;font-weight:700">
+        ❌ Build Failed：效能劣化 +148%，阻擋 PR 合併
+      </div>
+    </div>`,
+    9: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:6px">CPU 火焰圖（Hover 各層查看耗時）</div>
+      <div style="font-family:monospace;font-size:0.6875em;display:flex;flex-direction:column;gap:2px;margin-bottom:6px">
+        <div style="background:#fdba74;color:#0c0a09;padding:3px;border-radius:3px;text-align:center;cursor:pointer" onmouseover="flameHov('main','100%')" onmouseout="flameClear()">main() 100%</div>
+        <div style="display:flex;gap:2px">
+          <div style="flex:3;background:#f97316;color:#0c0a09;padding:3px;border-radius:3px;text-align:center;cursor:pointer" onmouseover="flameHov('HTTPHandler','60%')" onmouseout="flameClear()">HTTPHandler 60%</div>
+          <div style="flex:2;background:#fed7aa;color:#0c0a09;padding:3px;border-radius:3px;text-align:center;cursor:pointer" onmouseover="flameHov('Serializer','40%')" onmouseout="flameClear()">Serializer 40%</div>
+        </div>
+        <div style="display:flex;gap:2px">
+          <div style="flex:3;background:#ef4444;color:white;padding:3px;border-radius:3px;text-align:center;cursor:pointer;font-weight:700" onmouseover="flameHov('🚨 Regexp.Compile (瓶頸)','45%')" onmouseout="flameClear()">Regexp.Compile 45%</div>
+          <div style="flex:2;background:#fecaca;color:#450a0a;padding:3px;border-radius:3px;text-align:center;cursor:pointer" onmouseover="flameHov('GC Alloc','40%')" onmouseout="flameClear()">GC 40%</div>
+        </div>
+      </div>
+      <div id="d-flame" style="font-size:0.6875em;color:#64748b;text-align:center;font-style:italic">💡 Hover 各層，找橫軸最寬的「大平頂」即為 CPU 瓶頸</div>
+    </div>`,
+    10: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">TSDB Pull 架構 Scraping 波形</div>
+      <div style="background:#020617;border:1px solid #1e293b;padding:8px;border-radius:8px;font-family:monospace;font-size:0.75em;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="color:#64748b">2026-06-08 12:35:10</span>
+          <span id="d-prom-v" style="color:#fbbf24;font-weight:700">142 QPS</span>
+        </div>
+        <div style="color:#475569;font-size:0.6875em">http_errors{status="500"}</div>
+      </div>
+      <div style="display:flex;gap:3px;align-items:flex-end;height:40px;border-bottom:1px solid #1e293b;padding:0 8px;margin-bottom:6px">
+        <div style="background:#fbbf24;width:12%;height:20%"></div>
+        <div style="background:#fbbf24;width:12%;height:35%"></div>
+        <div style="background:#fbbf24;width:12%;height:15%"></div>
+        <div style="background:#fbbf24;width:12%;height:50%"></div>
+        <div id="d-prom-bar5" style="background:#fbbf24;width:12%;height:80%;transition:height .5s"></div>
+        <div id="d-prom-bar6" style="background:#ef4444;width:12%;height:100%;animation:pulse-glow 1s infinite"></div>
+      </div>
+      <div style="font-size:0.6875em;color:#64748b;text-align:center">每 15 秒 Pull 一次，TSDB XOR Delta 壓縮存儲</div>
+    </div>`,
+    11: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">SRE 核心 SLA 監控看板（實時跳動）</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px">
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:0.6875em;color:#64748b">QPS</div>
+          <div id="d-gf-q" style="font-size:1.0em;font-weight:900;color:#34d399">342/s</div>
+        </div>
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:0.6875em;color:#64748b">P99 延遲</div>
+          <div id="d-gf-l" style="font-size:1.0em;font-weight:900;color:#38bdf8">48ms</div>
+        </div>
+        <div style="background:#0f172a;border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:0.6875em;color:#64748b">5xx 錯誤率</div>
+          <div id="d-gf-e" style="font-size:1.0em;font-weight:900;color:#f87171">0.02%</div>
+        </div>
+      </div>
+      <div style="font-size:0.6875em;color:#475569;text-align:center;font-family:monospace">histogram_quantile(0.99, rate(http_req[5m]))</div>
+    </div>`,
+    12: `<div style="width:100%;font-size:0.875em">
+      <div style="font-size:0.6875em;color:#64748b;margin-bottom:8px">Little's Law 三向調控（L = λ × W）</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:3px">
+            <span>🚀 吞吐量 λ</span><span id="d-tri-q" style="color:#38bdf8;font-weight:700">中等</span>
+          </div>
+          <input type="range" min="1" max="3" value="2" id="tri-q" oninput="triTune('q')" style="width:100%;accent-color:#38bdf8">
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:3px">
+            <span>⏳ 延遲 W</span><span id="d-tri-l" style="color:#34d399;font-weight:700">中等</span>
+          </div>
+          <input type="range" min="1" max="3" value="2" id="tri-l" oninput="triTune('l')" style="width:100%;accent-color:#34d399">
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:0.75em;margin-bottom:3px">
+            <span>💻 資源利用率</span><span id="d-tri-r" style="color:#fbbf24;font-weight:700">中等</span>
+          </div>
+          <input type="range" min="1" max="3" value="2" id="tri-r" oninput="triTune('r')" style="width:100%;accent-color:#fbbf24">
+        </div>
+      </div>
+      <div id="d-tri-fb" style="font-size:0.6875em;color:#64748b;text-align:center;margin-top:6px;font-style:italic">💡 M/M/1 模型下三者此消彼長，拖動滑桿體驗</div>
+    </div>`
+  };
+
+  cont.innerHTML = D[id] || '<span style="color:#475569;font-size:0.875em">圖表載入中…</span>';
+
+  // 圖表互動函式
+  window.smellToggle = (t) => {
+    const bad = document.getElementById('d-bad'), good = document.getElementById('d-good'), fb = document.getElementById('d-fb');
+    if (!bad||!good||!fb) return;
+    bad.style.borderColor = t===1 ? '#ef4444' : 'rgba(239,68,68,0.3)';
+    good.style.borderColor = t===2 ? '#34d399' : 'rgba(52,211,153,0.2)';
+    fb.innerHTML = t===1 ? '🚨 God Object 萬能類別使修改極易引發連帶崩潰！' : '👏 SRP 拆解：修改金流絕不干擾信件通知，完美防禦連帶 Bug。';
+  };
+
+  window.runBdd = () => {
+    const el = document.getElementById('d-bdd');
+    if (el) { el.style.color='#34d399'; el.style.fontWeight='700'; el.textContent='✔ [PASS] expect(tax).toBe(100) → 斷言成立！'; }
+  };
+
+  window.bvaSel = (age, msg) => {
+    const el = document.getElementById('d-bva');
+    if (el) el.innerHTML = `<b style="color:#818cf8">年齡 ${age}：</b>${msg}`;
+  };
+
+  window.pyrSel = (t) => {
+    const m = {
+      e2e: 'E2E 頂層：模擬真實 Chrome 點選。最慢最貴最脆弱，僅限黃金路徑，控制在 10%。',
+      int: 'Integration：引入 Testcontainers 啟動真實 DB 容器。秒級執行，測試跨層協作。',
+      unit: 'Unit 底層：隔離依賴使用 Mock，毫秒級執行。應佔 70%，覆蓋所有邏輯分支。'
+    };
+    const el = document.getElementById('d-pyr');
+    if (el) el.innerHTML = m[t] || '';
+  };
+
+  window.runNewman = () => {
+    const t = document.getElementById('d-newman-t'), s = document.getElementById('d-newman-s'), box = document.getElementById('d-newman');
+    if (!t||!s||!box) return;
+    box.style.borderColor = '#34d399'; box.style.background = 'rgba(6,78,59,0.15)';
+    t.style.color = '#34d399'; t.textContent = '✔ Newman PASS';
+    s.style.color = '#86efac'; s.textContent = '回歸通過，准予部署！';
+  };
+
+  window.injectMut = (t) => {
+    const m = document.getElementById('d-mut'), r = document.getElementById('d-mut-r'), fb = document.getElementById('d-mut-fb');
+    if (!m||!r||!fb) return;
+    if (t==='gt') {
+      m.textContent='>'; m.style.color='#ef4444';
+      r.textContent='● 測試全部通過！(突變體倖存)'; r.style.color='#ef4444';
+      fb.innerHTML='⚠️ <b style="color:#ef4444">Survived！</b>未覆蓋「剛好5件」邊界，100% 覆蓋率只是假象！';
+    } else if (t==='lt') {
+      m.textContent='<'; m.style.color='#ef4444';
+      r.textContent='❌ 測試失敗！(突變體被擊殺)'; r.style.color='#34d399';
+      fb.innerHTML='🎉 <b style="color:#34d399">Killed！</b>測試成功偵測到邏輯篡改。';
+    } else {
+      m.textContent='>='; m.style.color='#38bdf8';
+      r.textContent='● 測試通過（覆蓋率 100%）'; r.style.color='#34d399';
+      fb.innerHTML='💡 突變已清除。注入突變檢驗測試集強度。';
+    }
+  };
+
+  window.updateK6 = (v) => {
+    const vEl = document.getElementById('d-k6-v'), lEl = document.getElementById('d-k6-l'), sEl = document.getElementById('d-k6-s');
+    if (!vEl||!lEl||!sEl) return;
+    vEl.textContent = v;
+    const lat = Math.round(35 + v*v/55000);
+    lEl.textContent = lat + 'ms';
+    if (lat < 150) {
+      lEl.style.color='#34d399'; sEl.style.background='rgba(6,78,59,0.2)'; sEl.style.borderColor='rgba(52,211,153,0.3)'; sEl.style.color='#34d399';
+      sEl.textContent = '🟢 系統優良：完全符合 SLA';
+    } else if (lat < 200) {
+      lEl.style.color='#fbbf24'; sEl.style.background='rgba(120,53,15,0.2)'; sEl.style.borderColor='rgba(251,191,36,0.3)'; sEl.style.color='#fbbf24';
+      sEl.textContent = '🟡 臨界飽和：DB 連線池開始排隊';
+    } else {
+      lEl.style.color='#ef4444'; sEl.style.background='rgba(127,29,29,0.2)'; sEl.style.borderColor='rgba(239,68,68,0.3)'; sEl.style.color='#ef4444';
+      sEl.textContent = '🚨 SLA 崩潰！連線耗盡，請求超時！';
+    }
+  };
+
+  window.rgSim = (bad) => {
+    const v = document.getElementById('d-rg-v'), b = document.getElementById('d-rg-b'), s = document.getElementById('d-rg-s');
+    if (!v||!b||!s) return;
+    if (bad) {
+      v.textContent='112ms'; v.style.color='#ef4444';
+      b.style.width='85%'; b.style.background='#ef4444';
+      s.style.background='rgba(127,29,29,0.15)'; s.style.borderColor='rgba(239,68,68,0.2)'; s.style.color='#f87171';
+      s.textContent='❌ Build Failed：效能劣化 +148%，阻擋 PR';
+    } else {
+      v.textContent='48ms'; v.style.color='#34d399';
+      b.style.width='38%'; b.style.background='#34d399';
+      s.style.background='rgba(6,78,59,0.15)'; s.style.borderColor='rgba(52,211,153,0.2)'; s.style.color='#34d399';
+      s.textContent='🟢 Build Pass：漂移 +6%，低於 15% 門檻';
+    }
+  };
+
+  window.flameHov = (name, pct) => {
+    const el = document.getElementById('d-flame');
+    if (el) el.innerHTML = `<b style="color:${name.includes('🚨')?'#ef4444':'#38bdf8'}">${name}</b> 耗費 <b>${pct}</b> CPU 週期`;
+  };
+  window.flameClear = () => {
+    const el = document.getElementById('d-flame');
+    if (el) el.innerHTML = '💡 找橫軸最寬的「大平頂」即為 CPU 瓶頸';
+  };
+
+  window.triTune = (leader) => {
+    const lbs = {1:'極低',2:'中等',3:'極高'};
+    const q = document.getElementById('tri-q'), l = document.getElementById('tri-l'), r = document.getElementById('tri-r');
+    const qV = document.getElementById('d-tri-q'), lV = document.getElementById('d-tri-l'), rV = document.getElementById('d-tri-r'), fb = document.getElementById('d-tri-fb');
+    if (!q||!l||!r) return;
+    if (leader==='q'&&q.value==3) { l.value=3; r.value=3; fb.innerHTML='吞吐極大化：QPS 暴增 → 排隊 → 延遲指數暴增、資源打滿。'; }
+    else if (leader==='l'&&l.value==1) { q.value=1; r.value=3; fb.innerHTML='極致低延遲：CPU Busy-waiting（高資源），無法多工 → 吞吐量極低。'; }
+    else if (leader==='r'&&r.value==1) { q.value=1; l.value=3; fb.innerHTML='極低資源：單線程服務 → 請求大排長龍（高延遲）→ 吞吐量見底。'; }
+    else fb.innerHTML='平衡模式：緩衝佇列在三者間取得最健康的平衡點。';
+    if (qV) qV.textContent = lbs[q.value]; if (lV) lV.textContent = lbs[l.value]; if (rV) rV.textContent = lbs[r.value];
+  };
+
+  // Grafana 實時跳動
+  if (id === 11) {
+    if (window._grafanaTimer) clearInterval(window._grafanaTimer);
+    window._grafanaTimer = setInterval(() => {
+      const q=document.getElementById('d-gf-q'), lat=document.getElementById('d-gf-l'), e=document.getElementById('d-gf-e');
+      if (q) q.textContent = Math.round(330+Math.random()*25)+'/s';
+      if (lat) lat.textContent = Math.round(44+Math.random()*8)+'ms';
+      if (e) e.textContent = (0.01+Math.random()*0.03).toFixed(2)+'%';
+    }, 1800);
+  }
+}
+
+/* ── 初始化 ── */
+resetLayout();
+tick();
+
+// Google Sites iframe 尺寸延遲偵測補強
+// Sites 有時在 DOMContentLoaded 後才計算 iframe 高度
+let retryCount = 0;
+const initRetry = setInterval(() => {
+  const w = canvasWrap.clientWidth || 0;
+  if (w > 100 || retryCount > 10) {
+    clearInterval(initRetry);
+    if (retryCount > 0) resetLayout();
+  }
+  retryCount++;
+  resizeCanvas();
+}, 300);
+</script>
+<script src="mindmap-enhancements.js"></script>
 </body>
 </html>
