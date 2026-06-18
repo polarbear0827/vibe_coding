@@ -82,4 +82,9 @@
   .learning-mini-tools {
     grid-template-columns: 1fr 1fr;
   }
+
+  #detail-panel [style*="grid-template-columns:minmax(86px"] {
+    grid-template-columns: 1fr !important;
+    gap: 2px !important;
+  }
 }
