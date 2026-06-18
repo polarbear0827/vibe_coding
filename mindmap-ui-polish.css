@@ -1,0 +1,85 @@
+/* Small usability layer for the original mindmap. Keep the visual language intact. */
+
+#detail-panel p {
+  margin-bottom: 10px;
+}
+
+#detail-panel code {
+  user-select: text;
+  -webkit-user-select: text;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(2, 6, 23, 0.72);
+  color: #7dd3fc;
+  font-family: Consolas, "SFMono-Regular", monospace;
+}
+
+#detail-panel pre {
+  user-select: text;
+  -webkit-user-select: text;
+  line-height: 1.65 !important;
+  tab-size: 2;
+}
+
+#diagram-container button,
+#canvas-controls button,
+#nav-bar button,
+#master-btn {
+  transition: transform .12s ease, border-color .12s ease, background .12s ease, color .12s ease;
+}
+
+#diagram-container button:hover,
+#canvas-controls button:hover,
+#nav-bar button:hover {
+  transform: translateY(-1px);
+}
+
+.learning-mini-tools {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #1e293b;
+}
+
+.learning-mini-tools button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, .72);
+  color: #cbd5e1;
+  font-size: .75em;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.learning-mini-tools button.tool-success {
+  border-color: rgba(52, 211, 153, .45);
+  color: #86efac;
+}
+
+.enhanced-focus #stage-overlay,
+.enhanced-focus #canvas-controls {
+  opacity: .15;
+  pointer-events: none;
+}
+
+.enhanced-focus #mindmap-canvas {
+  filter: saturate(.82) brightness(.82);
+}
+
+@media (max-width: 680px) {
+  #diagram-container [style*="grid-template-columns:repeat(4,1fr)"],
+  #diagram-container [style*="grid-template-columns:repeat(3,1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  #detail-panel pre {
+    font-size: .72em !important;
+  }
+
+  .learning-mini-tools {
+    grid-template-columns: 1fr 1fr;
+  }
+}

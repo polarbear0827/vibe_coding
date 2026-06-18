@@ -378,6 +378,85 @@ expect(canRedeem(11)).toBe(true);  // 邊界內</pre>`;
     update();
   }
 
+  function installMindmapUsabilityTools() {
+    const originalLoadDetails = loadDetails;
+    loadDetails = function enhancedLoadDetails(node) {
+      originalLoadDetails(node);
+      if (node && node.id) {
+        const nextHash = `#node-${node.id}`;
+        if (location.hash !== nextHash) {
+          history.replaceState(null, '', nextHash);
+        }
+        document.title = `${node.label}｜現代軟體工程互動心智圖`;
+      }
+    };
+
+    const controls = document.getElementById('canvas-controls');
+    if (controls && !document.getElementById('learning-mini-tools')) {
+      const tools = document.createElement('div');
+      tools.id = 'learning-mini-tools';
+      tools.className = 'learning-mini-tools';
+      tools.innerHTML = `
+        <button type="button" id="copy-node-link">複製目前節點連結</button>
+        <button type="button" id="toggle-focus-mode">閱讀聚焦模式</button>
+      `;
+      controls.appendChild(tools);
+
+      document.getElementById('copy-node-link').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        if (!selectedNode) {
+          button.textContent = '請先選一個節點';
+          setTimeout(() => { button.textContent = '複製目前節點連結'; }, 1200);
+          return;
+        }
+        const url = `${location.origin}${location.pathname}#node-${selectedNode.id}`;
+        try {
+          await navigator.clipboard.writeText(url);
+          button.textContent = '已複製連結';
+          button.classList.add('tool-success');
+        } catch (err) {
+          button.textContent = `節點連結：#node-${selectedNode.id}`;
+        }
+        setTimeout(() => {
+          button.textContent = '複製目前節點連結';
+          button.classList.remove('tool-success');
+        }, 1500);
+      });
+
+      document.getElementById('toggle-focus-mode').addEventListener('click', (event) => {
+        const active = document.body.classList.toggle('enhanced-focus');
+        event.currentTarget.textContent = active ? '退出聚焦模式' : '閱讀聚焦模式';
+      });
+    }
+
+    window.addEventListener('hashchange', selectNodeFromHash);
+    document.addEventListener('keydown', (event) => {
+      const tag = document.activeElement && document.activeElement.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (event.key === 'ArrowRight') {
+        navigateStep(1);
+        event.preventDefault();
+      }
+      if (event.key === 'ArrowLeft') {
+        navigateStep(-1);
+        event.preventDefault();
+      }
+    });
+
+    selectNodeFromHash();
+  }
+
+  function selectNodeFromHash() {
+    const match = location.hash.match(/^#node-(\d+)$/);
+    if (!match) return;
+    const node = concepts.find((item) => item.id === Number(match[1]));
+    if (!node) return;
+    selectedNode = node;
+    loadDetails(node);
+  }
+
+  installMindmapUsabilityTools();
+
   if (typeof selectedNode !== 'undefined' && selectedNode && (selectedNode.id === 5 || selectedNode.id === 6 || selectedNode.id === 7)) {
     loadDetails(selectedNode);
   }
